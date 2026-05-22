@@ -4,3 +4,4 @@ export type {
   Point, TerrainOptions, CarveOp, WeaponDef, TargetInfo,
   DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
 } from "./types";
+export { generateTerrain } from "./terrain/generate";
