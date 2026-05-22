@@ -7,6 +7,9 @@ import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
 import { ProjectileAnim } from "../render/Projectile";
 import { Explosion } from "../render/Explosion";
+import { WindArrow } from "../hud/WindArrow";
+import { TurnTimer } from "../hud/TurnTimer";
+import { PlayerList } from "../hud/PlayerList";
 
 declare global {
   interface Window {
@@ -22,6 +25,9 @@ export class MatchScene {
   protected terrain?: TerrainRenderer;
   private tanks = new Map<string, ReturnType<typeof createTankView>>();
   private activeAnims: Array<{ tick(): boolean; removeFromParent(): void }> = [];
+  private wind!: WindArrow;
+  private timer!: TurnTimer;
+  private players!: PlayerList;
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -37,6 +43,10 @@ export class MatchScene {
     window.__room = room;
     window.__sessionId = room.sessionId;
 
+    this.wind = new WindArrow();
+    this.timer = new TurnTimer();
+    this.players = new PlayerList();
+
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
@@ -50,6 +60,9 @@ export class MatchScene {
         }
         return true;
       });
+      this.wind.update(room.state);
+      this.timer.update(room.state);
+      this.players.update(room.state);
     });
   }
 
