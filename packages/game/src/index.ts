@@ -8,3 +8,4 @@ export { generateTerrain } from "./terrain/generate";
 export { carveInPlace, applyCarve } from "./terrain/carve";
 export { BABY_MISSILE } from "./weapons/baby-missile";
 export { computeDamage } from "./physics/damage";
+export { simulateProjectile } from "./physics/simulate";
