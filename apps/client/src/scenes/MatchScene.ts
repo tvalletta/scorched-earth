@@ -10,6 +10,7 @@ import { Explosion } from "../render/Explosion";
 import { WindArrow } from "../hud/WindArrow";
 import { TurnTimer } from "../hud/TurnTimer";
 import { PlayerList } from "../hud/PlayerList";
+import { AimControls } from "../input/AimControls";
 
 declare global {
   interface Window {
@@ -28,6 +29,7 @@ export class MatchScene {
   private wind!: WindArrow;
   private timer!: TurnTimer;
   private players!: PlayerList;
+  protected aim!: AimControls;
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -46,6 +48,7 @@ export class MatchScene {
     this.wind = new WindArrow();
     this.timer = new TurnTimer();
     this.players = new PlayerList();
+    this.aim = new AimControls(room);
 
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
