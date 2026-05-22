@@ -6,7 +6,7 @@ import {
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain } from "@se/game";
-import { handleFire } from "./resolveTurn";
+import { handleFire, type ResolveContext } from "./resolveTurn";
 
 interface JoinOptions {
   code: string;
@@ -18,6 +18,7 @@ interface JoinOptions {
 export class MatchRoom extends Room<MatchState> {
   override maxClients = MAX_PLAYERS;
   private terrain: Int16Array = new Int16Array(0);
+  private timeoutHandle: { clear: () => void } | null = null;
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -42,15 +43,37 @@ export class MatchRoom extends Room<MatchState> {
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
       handleFire(
-        {
-          state: this.state,
-          broadcast: (ev, payload) => this.broadcast(ev, payload),
-          schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
-          terrain: this.terrain,
-        },
+        this.resolveCtx(),
         client.sessionId, msg.angle, msg.power,
       );
     });
+  }
+
+  private resolveCtx(): ResolveContext {
+    return {
+      state: this.state,
+      broadcast: (ev, payload) => this.broadcast(ev, payload),
+      schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
+      terrain: this.terrain,
+      onTurnReady: () => this.armTurnTimer(),
+    };
+  }
+
+  private armTurnTimer(): void {
+    if (this.timeoutHandle) {
+      this.timeoutHandle.clear();
+      this.timeoutHandle = null;
+    }
+    if (this.state.turnTimerMs <= 0) return;
+    if (this.state.phase !== "playing") return;
+    this.timeoutHandle = this.clock.setTimeout(() => {
+      this.timeoutHandle = null;
+      if (this.state.phase !== "playing") return;
+      const currentId = this.state.currentTurnPlayerId;
+      const tank = this.state.tanks.get(currentId);
+      if (!tank || !tank.alive) return;
+      handleFire(this.resolveCtx(), currentId, tank.angle, tank.power);
+    }, this.state.turnTimerMs);
   }
 
   onJoin(client: Client, options: JoinOptions): void {
@@ -95,6 +118,7 @@ export class MatchRoom extends Room<MatchState> {
     const first = this.state.tanks.keys().next().value;
     this.state.currentTurnPlayerId = first ?? "";
     this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
+    this.armTurnTimer();
   }
 
   private placeTanksOn(terrain: Int16Array): void {

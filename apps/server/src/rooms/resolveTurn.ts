@@ -19,6 +19,7 @@ export interface ResolveContext {
   broadcast: (event: string, payload: unknown) => void;
   schedule: (delayMs: number, fn: () => void) => void;
   terrain: Int16Array;
+  onTurnReady?: () => void;
 }
 
 export function buildTerrainFromState(state: MatchState): Int16Array {
@@ -143,4 +144,5 @@ function commitResolution(ctx: ResolveContext, result: TrajectoryResult): void {
   state.currentTurnPlayerId = next;
   state.phase = "playing";
   state.turnDeadlineMs = Date.now() + state.turnTimerMs;
+  ctx.onTurnReady?.();
 }

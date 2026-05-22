@@ -135,3 +135,22 @@ describe("MatchRoom — fire", () => {
     await a.leave(); await b.leave();
   });
 });
+
+describe("MatchRoom — turn timeout", () => {
+  it("auto-fires after turnTimerMs elapses with no FIRE", async () => {
+    const a = await joinMatch({ code: "TO01", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "TO01", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("configure", { turnTimerMs: 500 });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+
+    const startTurn = a.state.currentTurnPlayerId;
+    await new Promise((r) => setTimeout(r, 6000));
+
+    expect(a.state.terrainOps.length).toBeGreaterThan(0);
+    expect(a.state.currentTurnPlayerId).not.toBe(startTurn);
+    await a.leave(); await b.leave();
+  });
+});
