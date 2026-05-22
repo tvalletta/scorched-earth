@@ -1,6 +1,6 @@
 # Phase 1 — Multiplayer Skeleton (Design)
 
-**Status:** Draft, awaiting user approval.
+**Status:** Implemented 2026-05-22.
 **Date:** 2026-05-22.
 **Parent docs:** `2026-05-22-roadmap.md` (phase plan), `SPEC.md` (full-game north star).
 **Next:** On approval → `/superpowers:writing-plans` against this doc.
