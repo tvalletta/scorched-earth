@@ -1,4 +1,5 @@
 import { Application } from "pixi.js";
+import { LobbyScene } from "./scenes/LobbyScene";
 
 declare global {
   interface Window { pixiApp?: Application }
@@ -6,14 +7,10 @@ declare global {
 
 async function main() {
   const app = new Application();
-  await app.init({
-    resizeTo: window,
-    background: 0xa6e1fa,
-    antialias: true,
-  });
+  await app.init({ resizeTo: window, background: 0xa6e1fa, antialias: true });
   document.getElementById("app")!.appendChild(app.canvas);
   window.pixiApp = app;
-  console.log("[client] PixiJS app initialized");
+  new LobbyScene();
 }
 
 main().catch(console.error);
