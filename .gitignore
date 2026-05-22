@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.vite/
+.turbo/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Superpowers visual companion (ephemeral mockups)
+.superpowers/
+
+# Karpathy local knowledge system
+.karpathy/
+
+# Claude Code local user settings (project-level settings.json IS tracked)
+.claude/settings.local.json
+.claude/.credentials.json
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
