@@ -5,6 +5,8 @@ import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
+import { ProjectileAnim } from "../render/Projectile";
+import { Explosion } from "../render/Explosion";
 
 declare global {
   interface Window {
@@ -19,6 +21,7 @@ export class MatchScene {
   // Held for future readers (heightAt, etc.).
   protected terrain?: TerrainRenderer;
   private tanks = new Map<string, ReturnType<typeof createTankView>>();
+  private activeAnims: Array<{ tick(): boolean; removeFromParent(): void }> = [];
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -38,6 +41,16 @@ export class MatchScene {
     room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
     room.onMessage("match-end", (msg) => this.onMatchEnd(msg));
+
+    this.app.ticker.add(() => {
+      this.activeAnims = this.activeAnims.filter((a) => {
+        if (a.tick()) {
+          a.removeFromParent();
+          return false;
+        }
+        return true;
+      });
+    });
   }
 
   private fit() {
@@ -77,7 +90,23 @@ export class MatchScene {
     });
   }
 
-  private onTrajectory(_msg: unknown) { /* Task 28 */ }
+  private onTrajectory(msg: {
+    samples: { x: number; y: number; t: number }[];
+    impact: { x: number; y: number } | null;
+  }) {
+    const proj = new ProjectileAnim(msg.samples);
+    this.world.addChild(proj);
+    this.activeAnims.push(proj);
+    if (msg.impact) {
+      const lastT = msg.samples[msg.samples.length - 1]?.t ?? 0;
+      const impact = msg.impact;
+      setTimeout(() => {
+        const ex = new Explosion(impact.x, impact.y);
+        this.world.addChild(ex);
+        this.activeAnims.push(ex);
+      }, lastT);
+    }
+  }
   private onDamage(_msg: unknown) { /* later */ }
   private onMatchEnd(_msg: unknown) { /* later */ }
 }
