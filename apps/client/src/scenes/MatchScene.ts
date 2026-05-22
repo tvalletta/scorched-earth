@@ -1,6 +1,9 @@
 import { Application, Container } from "pixi.js";
 import type { Room } from "colyseus.js";
+import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import { SkyRenderer } from "../render/Sky";
+import { TerrainRenderer } from "../render/Terrain";
 
 declare global {
   interface Window {
@@ -12,6 +15,8 @@ declare global {
 export class MatchScene {
   private app: Application;
   private world: Container;
+  // Held for future readers (heightAt, etc.).
+  protected terrain?: TerrainRenderer;
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -46,7 +51,13 @@ export class MatchScene {
 
   private onFirstState(state: MatchState) {
     console.log("[match] first state, phase=", state.phase, "tanks=", state.tanks.size);
-    // Renderers attached in subsequent tasks (Sky, Terrain, Tank, Projectile, etc.)
+    this.world.addChild(new SkyRenderer());
+    const terrain = new TerrainRenderer(state.terrainSeed);
+    this.world.addChild(terrain);
+    this.terrain = terrain;
+    const $ = getStateCallbacks(this.room);
+    $(state).terrainOps.onAdd((op) => terrain.carve(op));
+    // Tanks attached in Task 27
   }
 
   private onTrajectory(_msg: unknown) { /* Task 28 */ }
