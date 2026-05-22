@@ -1,2 +1,6 @@
 export { createPrng } from "./rng/prng";
 export type { Prng } from "./rng/prng";
+export type {
+  Point, TerrainOptions, CarveOp, WeaponDef, TargetInfo,
+  DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
+} from "./types";
