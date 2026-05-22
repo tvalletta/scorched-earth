@@ -6,6 +6,7 @@ import {
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain } from "@se/game";
+import { handleFire } from "./resolveTurn";
 
 interface JoinOptions {
   code: string;
@@ -16,6 +17,7 @@ interface JoinOptions {
 
 export class MatchRoom extends Room<MatchState> {
   override maxClients = MAX_PLAYERS;
+  private terrain: Int16Array = new Int16Array(0);
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -36,6 +38,18 @@ export class MatchRoom extends Room<MatchState> {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
       this.startMatch();
+    });
+
+    this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
+      handleFire(
+        {
+          state: this.state,
+          broadcast: (ev, payload) => this.broadcast(ev, payload),
+          schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
+          terrain: this.terrain,
+        },
+        client.sessionId, msg.angle, msg.power,
+      );
     });
   }
 
@@ -76,6 +90,7 @@ export class MatchRoom extends Room<MatchState> {
       width: TERRAIN_WIDTH,
       height: TERRAIN_HEIGHT,
     });
+    this.terrain = terrain;
     this.placeTanksOn(terrain);
     const first = this.state.tanks.keys().next().value;
     this.state.currentTurnPlayerId = first ?? "";

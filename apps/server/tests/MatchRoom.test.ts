@@ -79,3 +79,59 @@ describe("MatchRoom", () => {
     await b.leave();
   });
 });
+
+describe("MatchRoom — fire", () => {
+  it("non-current player firing is ignored", async () => {
+    const a = await joinMatch({ code: "FIRE01", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "FIRE01", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+
+    const turnPlayer = a.state.currentTurnPlayerId;
+    const wrong = turnPlayer === a.sessionId ? b : a;
+    const carveCountBefore = a.state.terrainOps.length;
+
+    wrong.send("fire", { angle: 90, power: 500 });
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(a.state.terrainOps.length).toBe(carveCountBefore);
+    await a.leave(); await b.leave();
+  });
+
+  it("current player firing produces a CarveOp and rotates turn", async () => {
+    const a = await joinMatch({ code: "FIRE02", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "FIRE02", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+
+    const turnPlayer = a.state.currentTurnPlayerId;
+    const turner = turnPlayer === a.sessionId ? a : b;
+
+    let trajectoryReceived = false;
+    turner.onMessage("trajectory-resolved", () => { trajectoryReceived = true; });
+
+    turner.send("fire", { angle: 90, power: 500 });
+    await new Promise((r) => setTimeout(r, 6000));
+
+    expect(trajectoryReceived).toBe(true);
+    expect(a.state.terrainOps.length).toBeGreaterThan(0);
+    expect(a.state.currentTurnPlayerId).not.toBe(turnPlayer);
+    await a.leave(); await b.leave();
+  });
+
+  it("clamps invalid angle and power without crashing", async () => {
+    const a = await joinMatch({ code: "FIRE03", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "FIRE03", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    const turner = a.state.currentTurnPlayerId === a.sessionId ? a : b;
+    turner.send("fire", { angle: 9999, power: -50 });
+    await new Promise((r) => setTimeout(r, 6000));
+    // Should not crash — phase ends in playing or ended, terrainOps recorded
+    expect(["playing", "ended"]).toContain(a.state.phase);
+    await a.leave(); await b.leave();
+  });
+});
