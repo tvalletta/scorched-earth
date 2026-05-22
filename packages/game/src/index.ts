@@ -5,3 +5,4 @@ export type {
   DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
 } from "./types";
 export { generateTerrain } from "./terrain/generate";
+export { carveInPlace, applyCarve } from "./terrain/carve";
