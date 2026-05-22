@@ -3,6 +3,7 @@ import {
   MatchState, Tank,
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
+  RECONNECT_GRACE_SEC,
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain } from "@se/game";
@@ -93,14 +94,32 @@ export class MatchRoom extends Room<MatchState> {
     }
   }
 
-  onLeave(client: Client): void {
+  async onLeave(client: Client, consented: boolean): Promise<void> {
     const tank = this.state.tanks.get(client.sessionId);
     if (!tank) return;
     tank.connected = false;
-    this.state.tanks.delete(client.sessionId);
+
+    // Demote host immediately so live host actions don't depend on a missing client.
     if (this.state.hostId === client.sessionId) {
-      const first = this.state.tanks.keys().next().value;
-      this.state.hostId = first ?? "";
+      for (const otherId of this.state.tanks.keys()) {
+        if (otherId !== client.sessionId) {
+          this.state.hostId = otherId;
+          break;
+        }
+      }
+      if (this.state.hostId === client.sessionId) this.state.hostId = "";
+    }
+
+    if (consented) {
+      this.state.tanks.delete(client.sessionId);
+      return;
+    }
+
+    try {
+      await this.allowReconnection(client, RECONNECT_GRACE_SEC);
+      tank.connected = true;
+    } catch {
+      this.state.tanks.delete(client.sessionId);
     }
   }
 

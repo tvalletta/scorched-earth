@@ -154,3 +154,19 @@ describe("MatchRoom — turn timeout", () => {
     await a.leave(); await b.leave();
   });
 });
+
+describe("MatchRoom — host migration", () => {
+  it("when host disconnects, hostId moves to next session", async () => {
+    const a = await joinMatch({ code: "HM01", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "HM01", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(a.state.hostId).toBe(a.sessionId);
+
+    await a.leave();
+    // wait for onLeave's synchronous demotion to run
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(b.state.hostId).toBe(b.sessionId);
+    await b.leave();
+  });
+});
