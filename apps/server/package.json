@@ -1,0 +1,28 @@
+{
+  "name": "@se/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --tsconfig tsconfig.dev.json src/index.ts",
+    "start": "node --experimental-strip-types src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.16.0",
+    "@colyseus/schema": "^3.0.0",
+    "@colyseus/ws-transport": "^0.16.0",
+    "@se/game": "workspace:*",
+    "@se/shared": "workspace:*",
+    "colyseus": "^0.16.0"
+  },
+  "devDependencies": {
+    "@colyseus/testing": "^0.16.0",
+    "@se/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
