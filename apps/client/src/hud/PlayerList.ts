@@ -9,6 +9,7 @@ export class PlayerList {
     document.getElementById("ui")!.appendChild(this.el);
   }
   update(state: MatchState) {
+    if (!state?.tanks) return;
     const lines: string[] = [];
     for (const t of state.tanks.values()) {
       const dot = `<span style="display:inline-block;width:10px;height:10px;background:${t.color};border-radius:50%;margin-right:6px;"></span>`;

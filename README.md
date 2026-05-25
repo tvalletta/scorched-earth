@@ -1,51 +1,106 @@
 # Scorched Earth Web
 
-A multiplayer browser reimplementation of the 1991 DOS classic. Phase 1 ships the multiplayer skeleton: 10-player rooms, one weapon (Baby Missile), wind + gravity ballistics, destructible terrain, and Cartoon-Illustrative graphics.
+A multiplayer browser reimplementation of Wendell Hicken's 1991 DOS classic. Up to 10 players share a room code, take turns aiming and firing, and watch the terrain get blown apart in real time. Built with TypeScript, PixiJS v8, and Colyseus for authoritative multiplayer.
 
-See [`SPEC.md`](SPEC.md) for the long-form vision, [`docs/superpowers/specs/2026-05-22-roadmap.md`](docs/superpowers/specs/2026-05-22-roadmap.md) for the phased build plan, and [`docs/superpowers/specs/2026-05-22-phase-1-multiplayer-skeleton-design.md`](docs/superpowers/specs/2026-05-22-phase-1-multiplayer-skeleton-design.md) for the current phase.
+**Current status — Phase 1:** 10-player rooms, Baby Missile weapon, wind + gravity ballistics, destructible terrain, Cartoon-Illustrative graphics.
 
-## Quick start
+---
+
+## Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | 22+ |
+| pnpm | 9+ |
+
+Install pnpm if you don't have it: `npm install -g pnpm`
+
+---
+
+## Setup
 
 ```bash
-# Once
+# 1. Install dependencies (run once)
 pnpm install
-pnpm exec playwright install chromium
 
-# Run server (terminal 1)
+# 2. Install Playwright browser (needed for E2E tests only)
+pnpm exec playwright install chromium
+```
+
+---
+
+## Running the game
+
+Open two terminals from the project root:
+
+```bash
+# Terminal 1 — game server (Colyseus on port 2567)
 pnpm --filter @se/server dev
 
-# Run client (terminal 2)
+# Terminal 2 — web client (Vite on port 5173)
 pnpm --filter @se/client dev
-# → open http://127.0.0.1:5173 in two browser tabs
-# → tab 1: enter nickname, click "Create match", copy the 6-char code
-# → tab 2: enter nickname, paste the code, click "Join"
-# → tab 1 (host): click "Start match"
-# → both players take turns; adjust angle/power with the sliders or arrow keys, Space or "FIRE" to fire
 ```
+
+Or run both together in one terminal:
+
+```bash
+pnpm dev
+```
+
+Then open **http://127.0.0.1:5173** in two browser tabs (or share the URL with another player on the same machine or network).
+
+### How to start a match
+
+1. **Tab 1 (host):** Enter a nickname → click **Create match** → note the 6-character room code shown on screen
+2. **Tab 2 (guest):** Enter a nickname → paste the code → click **Join**
+3. **Tab 1 (host):** Click **Start match**
+
+### How to play
+
+- Use the **Angle** slider or **← →** arrow keys to aim (hold **Shift** for ×5 steps)
+- Use the **Power** slider or **↑ ↓** arrow keys to adjust power (hold **Shift** for ×10 steps)
+- Press **Space** or click **FIRE** to shoot
+- A 30-second turn timer advances play automatically if you don't fire
+- Last tank standing wins; terrain is permanently destroyed by every explosion
+
+---
 
 ## Tests
 
 ```bash
-pnpm -r test          # vitest: unit + integration (@se/game, @se/server)
-pnpm test:e2e         # Playwright: full-match + reconnect smoke
-pnpm -r typecheck     # tsc across all packages
+pnpm -r test          # Vitest unit + integration tests (packages/game, apps/server)
+pnpm test:e2e         # Playwright end-to-end smoke tests
+pnpm -r typecheck     # TypeScript check across all packages
 ```
 
-## Workspace layout
+---
+
+## Project layout
 
 ```
-packages/game        # pure TS — physics, terrain, damage, PRNG, weapons
-packages/shared      # Colyseus schemas + intents + constants
-packages/tsconfig    # shared tsconfig presets
-apps/server          # Colyseus server (LobbyRoom + MatchRoom)
-apps/client          # Vite + PixiJS v8 client
-tests/e2e            # Playwright end-to-end
+packages/
+  game/       Pure TS — physics simulation, terrain generation/carving, PRNG, weapons
+  shared/     Colyseus schemas, intent types, shared constants
+  tsconfig/   Shared TypeScript config presets
+apps/
+  server/     Colyseus server — LobbyRoom (room codes) + MatchRoom (authoritative game state)
+  client/     Vite + PixiJS v8 client — scenes, renderers, HUD, input
+tests/
+  e2e/        Playwright end-to-end tests
+docs/
+  superpowers/specs/    Design documents and phase roadmap
+  superpowers/plans/    Implementation plans
 ```
 
-## Phase 1 status
+---
 
-- 30+ commits, 51 unit/integration tests + 2 E2E passing
-- See `docs/superpowers/plans/2026-05-22-phase-1-multiplayer-skeleton.md` for the implementation plan and `docs/superpowers/specs/` for the design docs
+## Further reading
+
+- [`SPEC.md`](SPEC.md) — full game vision and north-star feature list
+- [`docs/superpowers/specs/2026-05-22-roadmap.md`](docs/superpowers/specs/2026-05-22-roadmap.md) — 11-phase build plan
+- [`docs/superpowers/specs/2026-05-22-phase-1-multiplayer-skeleton-design.md`](docs/superpowers/specs/2026-05-22-phase-1-multiplayer-skeleton-design.md) — Phase 1 design doc
+
+---
 
 ## License
 

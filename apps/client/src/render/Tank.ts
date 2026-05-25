@@ -42,10 +42,10 @@ export function createTankView(opts: { color: string; hat: string }): Container 
     root.position.set(x, y);
   };
   root.setAngle = (deg: number) => {
-    // Base turret stroke points up-right (to +x, -y) at rotation=0.
-    // Mapping: rotation = (135 - deg) degrees so angle=90 -> straight up.
-    const rad = ((135 - deg) * Math.PI) / 180;
-    turret.rotation = rad;
+    // Turret stroke is drawn from (0,-3) to (14,-13), direction (14,-10).
+    // Convention: deg=0 → fire left, deg=90 → fire up, deg=180 → fire right.
+    // Desired screen direction = (-cos(a), -sin(a)); natural angle = atan2(-10,14).
+    turret.rotation = Math.PI + (deg * Math.PI) / 180 - Math.atan2(-10, 14);
   };
   root.setAlive = (alive) => {
     root.alpha = alive ? 1 : 0.3;

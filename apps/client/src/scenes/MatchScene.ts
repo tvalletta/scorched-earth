@@ -83,11 +83,22 @@ export class MatchScene {
   private onFirstState(state: MatchState) {
     console.log("[match] first state, phase=", state.phase, "tanks=", state.tanks.size);
     this.world.addChild(new SkyRenderer());
-    const terrain = new TerrainRenderer(state.terrainSeed);
-    this.world.addChild(terrain);
-    this.terrain = terrain;
+
+    // Terrain seed is set when the match starts (not in lobby). Rebuild terrain
+    // whenever the seed arrives so the client renders the same heightmap the
+    // server computed physics against.
+    const buildTerrain = (seed: string) => {
+      if (!seed) return;
+      if (this.terrain) this.terrain.removeFromParent();
+      const t = new TerrainRenderer(seed);
+      this.world.addChildAt(t, 1); // index 1 = behind tanks, in front of sky
+      this.terrain = t;
+    };
+
     const $ = getStateCallbacks(this.room);
-    $(state).terrainOps.onAdd((op) => terrain.carve(op));
+    $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
+    $(state).terrainOps.onAdd((op) => this.terrain?.carve(op));
+
     $(state).tanks.onAdd((tank, id) => {
       const view = createTankView({ color: tank.color, hat: tank.hat });
       this.world.addChild(view);
@@ -99,10 +110,12 @@ export class MatchScene {
       };
       sync();
       $(tank).onChange(sync);
+      if (id === this.room.sessionId) this.aim.setLocalTank(view);
     });
     $(state).tanks.onRemove((_t, id) => {
       this.tanks.get(id)?.destroy();
       this.tanks.delete(id);
+      if (id === this.room.sessionId) this.aim.setLocalTank(null);
     });
   }
 
