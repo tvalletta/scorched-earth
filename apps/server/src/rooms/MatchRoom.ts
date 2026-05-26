@@ -5,9 +5,10 @@ import {
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
   LOADOUT_MAP, DEFAULT_LOADOUT_ID,
+  DEFAULT_STARTING_CASH, SHOP_DURATION_MS,
   type TankColor, type TankHat,
 } from "@se/shared";
-import { generateTerrain } from "@se/game";
+import { generateTerrain, createPrng } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 
 interface JoinOptions {
@@ -21,6 +22,8 @@ export class MatchRoom extends Room<MatchState> {
   override maxClients = MAX_PLAYERS;
   private terrain: Int16Array = new Int16Array(0);
   private timeoutHandle: { clear: () => void } | null = null;
+  private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
+  private matchSeed = "";
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -74,6 +77,7 @@ export class MatchRoom extends Room<MatchState> {
       schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
       terrain: this.terrain,
       onTurnReady: () => this.armTurnTimer(),
+      onRoundEnd: () => this.handleRoundEnd(),
     };
   }
 
@@ -152,9 +156,22 @@ export class MatchRoom extends Room<MatchState> {
     }
   }
 
+  private initCash(): void {
+    for (const tank of this.state.tanks.values()) {
+      tank.cash = DEFAULT_STARTING_CASH;
+      tank.damageDealtThisRound = 0;
+      tank.killsThisRound = 0;
+      tank.readyForShop = false;
+    }
+  }
+
   private startMatch(): void {
+    this.matchSeed = this.state.roomCode || "match";
+    this.state.round = 1;
+    this.state.roundsWon.clear();
+
     this.state.phase = "playing";
-    this.state.terrainSeed = (this.state.roomCode || "match") + "-v1";
+    this.state.terrainSeed = this.matchSeed + "_r1";
     const terrain = generateTerrain({
       seed: this.state.terrainSeed,
       type: "random",
@@ -164,6 +181,9 @@ export class MatchRoom extends Room<MatchState> {
     this.terrain = terrain;
     this.placeTanksOn(terrain);
     this.seedInventory();
+    this.initCash();
+    const windPrng = createPrng(this.state.terrainSeed + "_wind");
+    this.state.wind = windPrng.nextInt(-10, 10);
     const first = this.state.tanks.keys().next().value;
     this.state.currentTurnPlayerId = first ?? "";
     this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
@@ -179,5 +199,98 @@ export class MatchRoom extends Room<MatchState> {
       tank.x = x;
       tank.y = terrain[x] ?? 0;
     });
+  }
+
+  private handleRoundEnd(): void {
+    this.clock.setTimeout(() => {
+      this.openShop();
+    }, 5_000);
+  }
+
+  private openShop(): void {
+    const state = this.state;
+    state.phase = "shopping";
+    state.shopDeadlineMs = Date.now() + SHOP_DURATION_MS;
+    for (const tank of state.tanks.values()) {
+      tank.readyForShop = false;
+    }
+    this.shopTimerHandle = this.clock.setTimeout(() => {
+      this.shopTimerHandle = null;
+      this.advanceAfterShop();
+    }, SHOP_DURATION_MS);
+  }
+
+  private advanceAfterShop(): void {
+    if (this.shopTimerHandle) {
+      this.shopTimerHandle.clear();
+      this.shopTimerHandle = null;
+    }
+    if (this.state.round >= this.state.maxRounds) {
+      this.endMatch();
+    } else {
+      this.startNextRound();
+    }
+  }
+
+  private endMatch(): void {
+    const state = this.state;
+    state.phase = "ended";
+
+    const standings = Array.from(state.tanks.values())
+      .map((t) => ({
+        sessionId: t.sessionId,
+        nickname: t.nickname,
+        roundsWon: state.roundsWon.get(t.sessionId) ?? 0,
+        totalCash: t.cash,
+        totalDamage: t.totalDamageDealt,
+        totalKills: t.totalKills,
+      }))
+      .sort((a, b) =>
+        b.roundsWon !== a.roundsWon
+          ? b.roundsWon - a.roundsWon
+          : b.totalCash - a.totalCash,
+      );
+
+    const winnerId = standings[0]?.sessionId ?? "";
+    state.winnerId = winnerId;
+    this.broadcast("match-end", { winnerId, standings });
+  }
+
+  private startNextRound(): void {
+    const state = this.state;
+    state.round++;
+
+    state.terrainSeed = this.matchSeed + "_r" + state.round;
+    state.terrainOps.clear();
+    state.terrainVersion++;
+
+    const terrain = generateTerrain({
+      seed: state.terrainSeed,
+      type: "random",
+      width: TERRAIN_WIDTH,
+      height: TERRAIN_HEIGHT,
+    });
+    this.terrain = terrain;
+
+    const windPrng = createPrng(state.terrainSeed + "_wind");
+    state.wind = windPrng.nextInt(-10, 10);
+
+    for (const tank of state.tanks.values()) {
+      tank.hp = 100;
+      tank.alive = tank.connected;
+      tank.damageDealtThisRound = 0;
+      tank.killsThisRound = 0;
+      tank.readyForShop = false;
+      tank.weaponId = "baby-missile";
+    }
+
+    this.placeTanksOn(terrain);
+
+    const first = Array.from(state.tanks.values()).find((t) => t.alive)?.sessionId ?? "";
+    state.currentTurnPlayerId = first;
+    state.phase = "playing";
+    state.tick++;
+    state.turnDeadlineMs = Date.now() + state.turnTimerMs;
+    this.armTurnTimer();
   }
 }
