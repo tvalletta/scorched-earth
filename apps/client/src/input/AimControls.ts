@@ -15,6 +15,8 @@ export class AimControls {
   private loadoutSection!: HTMLDivElement;
   private loadoutBtns: HTMLButtonElement[] = [];
   private loadoutDisplay!: HTMLDivElement;
+  private maxRoundsSection!: HTMLDivElement;
+  private maxRoundsInput!: HTMLInputElement;
 
   private angle = 90;
   private power = 500;
@@ -177,12 +179,32 @@ export class AimControls {
     });
     this.loadoutSection.append(loadoutTitle, ...this.loadoutBtns);
 
+    // ── Max rounds section (host-only lobby) ──────────────────────────────
+    this.maxRoundsSection = mkDiv("pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:4px;");
+    this.maxRoundsInput = document.createElement("input");
+    this.maxRoundsInput.type = "number";
+    this.maxRoundsInput.min = "1";
+    this.maxRoundsInput.max = "20";
+    this.maxRoundsInput.value = "5";
+    this.maxRoundsInput.style.cssText =
+      "width:52px;text-align:center;padding:4px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);" +
+      "background:rgba(15,23,42,0.9);color:#e0e0e0;font:bold 13px 'Courier New',monospace;";
+    this.maxRoundsInput.onchange = () => {
+      const v = Math.max(1, Math.min(20, parseInt(this.maxRoundsInput.value, 10) || 5));
+      this.maxRoundsInput.value = String(v);
+      this.room.send("configure", { maxRounds: v });
+    };
+    this.maxRoundsSection.append(
+      mkLabel("ROUNDS"),
+      this.maxRoundsInput,
+    );
+
     // Loadout display (non-host, lobby phase)
     this.loadoutDisplay = mkDiv(
       "color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
     );
 
-    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.loadoutDisplay);
+    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.loadoutDisplay);
   }
 
   private refreshChrome() {
@@ -200,6 +222,7 @@ export class AimControls {
     if (inLobby) {
       this.phaseEl.textContent = isHost ? "WAITING FOR PLAYERS" : "WAITING FOR HOST";
       this.loadoutSection.style.display = isHost ? "flex" : "none";
+      this.maxRoundsSection.style.display = isHost ? "flex" : "none";
       this.loadoutDisplay.style.display = !isHost ? "block" : "none";
       if (isHost) this.refreshLoadoutBtns(this.room.state.loadoutId);
       if (!isHost) {
@@ -208,6 +231,7 @@ export class AimControls {
       }
     } else {
       this.loadoutSection.style.display = "none";
+      this.maxRoundsSection.style.display = "none";
       this.loadoutDisplay.style.display = "none";
       if (state.phase === "playing") {
         const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
