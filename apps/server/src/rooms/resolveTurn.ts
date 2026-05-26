@@ -9,8 +9,13 @@ import {
   generateTerrain,
   carveInPlace,
   BABY_MISSILE,
+  WEAPON_REGISTRY,
+  DEATH_EXPLOSION,
+  computeDamage,
   type TargetInfo,
   type TrajectoryResult,
+  type WeaponDef,
+  type DamageEntry,
 } from "@se/game";
 import { nextTurnPlayerId } from "./turnController";
 
@@ -59,12 +64,22 @@ export function handleFire(
 
   state.phase = "resolving";
 
+  // Resolve weapon from inventory
+  const weaponDef: WeaponDef = WEAPON_REGISTRY.get(tank.weaponId) ?? BABY_MISSILE;
+  const currentCount = tank.inventory.get(tank.weaponId) ?? -1;
+  if (currentCount > 0) {
+    tank.inventory.set(tank.weaponId, currentCount - 1);
+  } else if (currentCount === 0) {
+    // Depleted — guard; select-weapon should prevent this
+    tank.weaponId = "baby-missile";
+  }
+
   const targets: TargetInfo[] = Array.from(state.tanks.values())
     .filter((t) => t.alive && t.sessionId !== sessionId)
     .map((t) => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: 0 }));
 
   const result = simulateProjectile({
-    weapon: BABY_MISSILE,
+    weapon: weaponDef,
     origin: { x: tank.x, y: tank.y - 5 },
     angle, power,
     wind: state.wind,
@@ -76,23 +91,42 @@ export function handleFire(
     targets,
   });
 
+  const totalDuration = calcTotalDuration(result);
+
   broadcast("trajectory-resolved", {
     samples: result.samples,
+    splitAt: result.splitAt ?? null,
+    children: (result.children ?? []).map((c) => ({
+      samples: c.samples,
+      impact: c.impact,
+      durationMs: c.durationMs,
+      weaponId: weaponDef.split?.child.id ?? weaponDef.id,
+    })),
     impact: result.impact,
-    weaponId: BABY_MISSILE.id,
+    weaponId: weaponDef.id,
     ownerId: sessionId,
-    durationMs: result.durationMs,
+    durationMs: totalDuration,
   });
 
-  schedule(result.durationMs + POST_PLAYBACK_BUFFER_MS, () => {
+  schedule(totalDuration + POST_PLAYBACK_BUFFER_MS, () => {
     commitResolution(ctx, result);
   });
 }
 
-function commitResolution(ctx: ResolveContext, result: TrajectoryResult): void {
-  const { state, broadcast, terrain } = ctx;
+function calcTotalDuration(result: TrajectoryResult): number {
+  if (!result.children?.length) return result.durationMs;
+  const splitTime = result.splitAt?.t ?? 0;
+  return splitTime + Math.max(...result.children.map(calcTotalDuration));
+}
 
+function collectLeafDamages(result: TrajectoryResult): DamageEntry[] {
+  if (!result.children?.length) return result.damages;
+  return result.children.flatMap(collectLeafDamages);
+}
+
+function applyAllCarves(ctx: ResolveContext, result: TrajectoryResult): void {
   if (result.carveOp) {
+    const { state, terrain } = ctx;
     const op = new CarveOp();
     op.x = result.carveOp.x;
     op.y = result.carveOp.y;
@@ -100,26 +134,61 @@ function commitResolution(ctx: ResolveContext, result: TrajectoryResult): void {
     op.tick = state.tick + 1;
     state.terrainOps.push(op);
     state.terrainVersion++;
-    carveInPlace(
-      terrain,
-      { x: op.x, y: op.y, radius: op.radius, tick: op.tick },
-      { terrainHeight: TERRAIN_HEIGHT },
-    );
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
   }
+  for (const child of result.children ?? []) {
+    applyAllCarves(ctx, child);
+  }
+}
 
-  if (result.damages.length > 0) {
-    const events: Array<{ playerId: string; before: number; after: number }> = [];
-    for (const d of result.damages) {
-      const t = state.tanks.get(d.playerId);
-      if (!t || !t.alive) continue;
-      const before = t.hp;
-      t.hp = Math.max(0, t.hp - d.hullDamage);
-      events.push({ playerId: d.playerId, before, after: t.hp });
-      if (t.hp <= 0) t.alive = false;
+// Exported for testing
+export function applyDamagesWithChainKills(
+  ctx: ResolveContext,
+  damages: DamageEntry[],
+  depth: number,
+): void {
+  if (depth > 10 || damages.length === 0) return;
+  const { state, broadcast } = ctx;
+  const events: Array<{ playerId: string; before: number; after: number }> = [];
+  const newlyDeadPositions: Array<{ x: number; y: number }> = [];
+
+  for (const d of damages) {
+    const t = state.tanks.get(d.playerId);
+    if (!t || !t.alive) continue;
+    const before = t.hp;
+    t.hp = Math.max(0, t.hp - d.hullDamage);
+    events.push({ playerId: d.playerId, before, after: t.hp });
+    if (t.hp <= 0) {
+      t.alive = false;
+      newlyDeadPositions.push({ x: t.x, y: t.y });
     }
-    broadcast("damage-applied", { damages: events });
   }
 
+  if (events.length > 0) {
+    broadcast("damage-applied", { damages: events, wave: depth });
+  }
+
+  for (const pos of newlyDeadPositions) {
+    const deathDamages = computeDamage(
+      pos,
+      DEATH_EXPLOSION,
+      Array.from(state.tanks.values())
+        .filter((t) => t.alive)
+        .map((t) => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: 0 })),
+    );
+    applyDamagesWithChainKills(ctx, deathDamages, depth + 1);
+  }
+}
+
+export function commitResolution(ctx: ResolveContext, result: TrajectoryResult): void {
+  const { state, broadcast, terrain } = ctx;
+
+  applyAllCarves(ctx, result);
+
+  const allDamages = collectLeafDamages(result);
+  applyDamagesWithChainKills(ctx, allDamages, 0);
+
+  // Settle alive tanks on terrain
   for (const t of state.tanks.values()) {
     if (!t.alive) continue;
     const x = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(t.x)));
