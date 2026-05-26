@@ -2,7 +2,13 @@ import { Schema, MapSchema, ArraySchema, type } from "@colyseus/schema";
 import { Tank } from "./Tank";
 import { CarveOp } from "./CarveOp";
 
-export type MatchPhase = "lobby" | "playing" | "resolving" | "ended";
+export type MatchPhase =
+  | "lobby"
+  | "playing"
+  | "resolving"
+  | "round-summary"
+  | "shopping"
+  | "ended";
 
 export class MatchState extends Schema {
   @type("string") phase: MatchPhase = "lobby";
@@ -22,4 +28,10 @@ export class MatchState extends Schema {
   @type({ map: Tank }) tanks = new MapSchema<Tank>();
   @type("string") winnerId = "";
   @type("string") loadoutId = "standard";
+  // Phase 3 — multi-round
+  @type("number") round = 1;
+  @type("number") maxRounds = 5;
+  @type({ map: "number" }) roundsWon = new MapSchema<number>();
+  @type("number") summaryDeadlineMs = 0;
+  @type("number") shopDeadlineMs = 0;
 }
