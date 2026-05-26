@@ -64,8 +64,6 @@ export function handleFire(
 
   state.phase = "resolving";
 
-  // Resolve weapon from inventory
-  const weaponDef: WeaponDef = WEAPON_REGISTRY.get(tank.weaponId) ?? BABY_MISSILE;
   const currentCount = tank.inventory.get(tank.weaponId) ?? -1;
   if (currentCount > 0) {
     tank.inventory.set(tank.weaponId, currentCount - 1);
@@ -73,6 +71,8 @@ export function handleFire(
     // Depleted — guard; select-weapon should prevent this
     tank.weaponId = "baby-missile";
   }
+  // Resolve weapon AFTER potential reset
+  const weaponDef: WeaponDef = WEAPON_REGISTRY.get(tank.weaponId) ?? BABY_MISSILE;
 
   const targets: TargetInfo[] = Array.from(state.tanks.values())
     .filter((t) => t.alive && t.sessionId !== sessionId)
@@ -147,7 +147,7 @@ export function applyDamagesWithChainKills(
   damages: DamageEntry[],
   depth: number,
 ): void {
-  if (depth > 10 || damages.length === 0) return;
+  if (depth >= 10 || damages.length === 0) return;
   const { state, broadcast } = ctx;
   const events: Array<{ playerId: string; before: number; after: number }> = [];
   const newlyDeadPositions: Array<{ x: number; y: number }> = [];
