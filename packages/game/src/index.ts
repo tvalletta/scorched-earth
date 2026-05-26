@@ -13,3 +13,5 @@ export {
 export { DEATH_EXPLOSION } from "./weapons/death-explosion";
 export { computeDamage } from "./physics/damage";
 export { simulateProjectile } from "./physics/simulate";
+export { computeRoundEarnings, validatePurchase } from "./economy";
+export type { RoundEarnings, PurchaseResult, ShopWeaponEntry } from "./economy";
