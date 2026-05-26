@@ -2,6 +2,9 @@ import { COLORS, HATS } from "@se/shared";
 import { createMatch, joinMatch } from "../net/colyseusClient";
 import { MatchScene } from "./MatchScene";
 
+const urlMatch = location.pathname.match(/^\/([A-Z0-9]{6})$/i);
+const codeFromUrl = urlMatch ? urlMatch[1].toUpperCase() : null;
+
 export class LobbyScene {
   private root: HTMLDivElement;
 
@@ -25,12 +28,25 @@ export class LobbyScene {
           <button id="join">Join</button>
         </div>
         <div id="status" style="margin-top:12px;color:#666;"></div>
+        <div id="invite" style="display:none;margin-top:12px;padding:10px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+          <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Share this link to invite players:</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="invite-url" style="font:12px 'Courier New',monospace;color:#0f172a;word-break:break-all;flex:1;"></span>
+            <button id="copy-link" style="white-space:nowrap;padding:4px 10px;font-size:12px;">📋 Copy link</button>
+          </div>
+        </div>
       </div>
     `;
     document.getElementById("ui")!.appendChild(this.root);
 
     this.root.querySelector<HTMLButtonElement>("#create")!.onclick = () => this.onCreate();
     this.root.querySelector<HTMLButtonElement>("#join")!.onclick = () => this.onJoin();
+    this.root.querySelector<HTMLButtonElement>("#copy-link")!.onclick = () => this.onCopyLink();
+
+    if (codeFromUrl) {
+      this.root.querySelector<HTMLInputElement>("#code")!.value = codeFromUrl;
+      setTimeout(() => this.onJoin(), 100);
+    }
   }
 
   private get meta() {
@@ -45,11 +61,28 @@ export class LobbyScene {
     this.root.querySelector<HTMLDivElement>("#status")!.textContent = text;
   }
 
+  private showInvite(code: string) {
+    const url = `${location.origin}/${code}`;
+    this.root.querySelector<HTMLSpanElement>("#invite-url")!.textContent = url;
+    this.root.querySelector<HTMLDivElement>("#invite")!.style.display = "block";
+  }
+
+  private onCopyLink() {
+    const url = this.root.querySelector<HTMLSpanElement>("#invite-url")!.textContent ?? "";
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = this.root.querySelector<HTMLButtonElement>("#copy-link")!;
+      btn.textContent = "✓ Copied!";
+      setTimeout(() => { btn.textContent = "📋 Copy link"; }, 2000);
+    });
+  }
+
   private async onCreate() {
     this.setStatus("Creating room...");
     try {
       const { room, code } = await createMatch(this.meta);
+      history.pushState({}, "", "/" + code);
       this.setStatus(`Room ${code} — share this code`);
+      this.showInvite(code);
       this.dispose();
       new MatchScene(room, code);
     } catch (e: unknown) {

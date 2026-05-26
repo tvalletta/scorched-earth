@@ -25,6 +25,7 @@ export class MatchRoom extends Room<MatchState> {
   private timeoutHandle: { clear: () => void } | null = null;
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
+  private observers = new Set<string>();
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -147,6 +148,12 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   onJoin(client: Client, options: JoinOptions): void {
+    // If game is already in progress or room is at tank capacity, treat as observer
+    if (this.state.phase !== "lobby" || this.state.tanks.size >= this.maxClients) {
+      this.observers.add(client.sessionId);
+      return;
+    }
+
     const tank = new Tank();
     tank.playerId = client.sessionId;
     tank.sessionId = client.sessionId;
@@ -164,6 +171,11 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   async onLeave(client: Client, consented: boolean): Promise<void> {
+    if (this.observers.has(client.sessionId)) {
+      this.observers.delete(client.sessionId);
+      return;
+    }
+
     const tank = this.state.tanks.get(client.sessionId);
     if (!tank) return;
     tank.connected = false;

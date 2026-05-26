@@ -149,6 +149,10 @@ export class WeaponBar {
     return d;
   }
 
+  hide(): void {
+    this.el.remove();
+  }
+
   destroy(): void {
     window.removeEventListener("keydown", this.onKey);
     this.el.remove();

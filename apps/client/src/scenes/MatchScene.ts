@@ -142,6 +142,23 @@ export class MatchScene {
       this.tanks.delete(id);
       if (id === this.room.sessionId) this.aim.setLocalTank(null);
     });
+
+    // Observer mode: this client joined but has no tank
+    if (!state.tanks.has(this.room.sessionId)) {
+      this.aim.hide();
+      this.weaponBar.hide();
+      this.showObserverBanner();
+    }
+  }
+
+  private showObserverBanner(): void {
+    const banner = document.createElement("div");
+    banner.style.cssText =
+      "position:fixed;top:12px;left:50%;transform:translateX(-50%);" +
+      "background:rgba(0,0,0,0.75);color:#f0c040;font:bold 12px 'Courier New',monospace;" +
+      "padding:6px 16px;border-radius:6px;letter-spacing:2px;z-index:200;pointer-events:none;";
+    banner.textContent = "SPECTATING";
+    document.getElementById("ui")!.appendChild(banner);
   }
 
   private onTrajectory(msg: {

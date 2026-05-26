@@ -389,6 +389,10 @@ export class AimControls {
     this.room.send("fire", { angle: this.angle, power: this.power });
   }
 
+  hide() {
+    this.el.remove();
+  }
+
   destroy() {
     window.removeEventListener("keydown", this.onKey);
     this.el.remove();
