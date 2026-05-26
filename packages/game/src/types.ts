@@ -69,3 +69,69 @@ export interface TrajectoryResult {
   splitAt?: TrajectorySample;
   children?: TrajectoryResult[];
 }
+
+// Phase 4 — tick-stream physics
+
+export interface LiveProjectile {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  weapon: WeaponDef;
+  ownerId: string;
+  apexReached: boolean;
+  isPatriot?: true;
+  targetId?: string;
+}
+
+export interface StepTankInfo {
+  sessionId: string;
+  x: number;
+  y: number;
+  shieldHp: number;
+  shieldMaxHp: number;
+  shieldRadius: number;
+  shieldType: "absorb" | "deflect" | "bend" | "explode" | "";
+  hpCostFraction: number;
+}
+
+export interface StepInput {
+  projectiles: LiveProjectile[];
+  tanks: StepTankInfo[];
+  terrain: Int16Array;
+  terrainWidth: number;
+  terrainHeight: number;
+  wind: number;
+  gravity: number;
+  dt: number;
+}
+
+export type StepEvent =
+  | { kind: "terrain-impact"; projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string }
+  | { kind: "shield-absorb";  projectileId: string; targetId: string; hpBefore: number; hpAfter: number }
+  | { kind: "shield-deflect"; projectileId: string; targetId: string; newVx: number; newVy: number; hpBefore: number; hpAfter: number }
+  | { kind: "shield-bend";    projectileId: string; targetId: string; impulseX: number; impulseY: number }
+  | { kind: "shield-explode"; projectileId: string; targetId: string; x: number; y: number }
+  | { kind: "out-of-bounds";  projectileId: string }
+  | { kind: "mirv-split";     projectileId: string; x: number; y: number; children: LiveProjectile[] }
+  | { kind: "patriot-intercept"; patriotId: string; targetId: string; x: number; y: number };
+
+export interface StepResult {
+  survivors: LiveProjectile[];
+  spawned: LiveProjectile[];
+  events: StepEvent[];
+  shieldDrains: Array<{ sessionId: string; hpDrain: number }>;
+}
+
+export interface FallDamageInput {
+  sessionId: string;
+  tankY: number;
+  surfaceY: number;
+  hasParachute: boolean;
+}
+
+export interface FallDamageResult {
+  damage: number;
+  parachuteConsumed: boolean;
+}
