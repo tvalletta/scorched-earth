@@ -5,6 +5,8 @@ const FUNKY_BOMB_SUB: WeaponDef = {
   radius: 18,
   damage: 20,
   windImmune: false,
+  price: 0,
+  packSize: 0,
 };
 
 export const FUNKY_BOMB: WeaponDef = {
@@ -12,6 +14,8 @@ export const FUNKY_BOMB: WeaponDef = {
   radius: 0,
   damage: 0,
   windImmune: false,
+  price: 8_000,
+  packSize: 3,
   split: {
     trigger: "apex",
     count: 8,

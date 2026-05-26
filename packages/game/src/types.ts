@@ -25,6 +25,8 @@ export interface WeaponDef {
   damage: number;
   windImmune: boolean;
   split?: SplitDef;
+  price: number;      // $ cost per purchase; 0 = free
+  packSize: number;   // units granted per purchase; 0 = not sold in shop (sub-munitions)
 }
 
 export interface TargetInfo {

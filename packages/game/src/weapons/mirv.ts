@@ -5,6 +5,8 @@ const MIRV_SUB: WeaponDef = {
   radius: 25,
   damage: 35,
   windImmune: false,
+  price: 0,
+  packSize: 0,
 };
 
 export const MIRV: WeaponDef = {
@@ -12,6 +14,8 @@ export const MIRV: WeaponDef = {
   radius: 0,
   damage: 0,
   windImmune: false,
+  price: 12_000,
+  packSize: 2,
   split: {
     trigger: "apex",
     count: 5,

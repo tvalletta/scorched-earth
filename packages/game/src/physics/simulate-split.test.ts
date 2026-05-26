@@ -20,20 +20,20 @@ function base(weapon: WeaponDef, overrides: Partial<SimInput> = {}): SimInput {
 }
 
 const RADIAL_3: WeaponDef = {
-  id: "test-radial", radius: 0, damage: 0, windImmune: false,
+  id: "test-radial", radius: 0, damage: 0, windImmune: false, price: 0, packSize: 0,
   split: {
     trigger: "apex", count: 3, spreadDeg: 360, centerDeg: 90,
     inheritVelocity: false, ejectionSpeed: 200,
-    child: { id: "test-child", radius: 15, damage: 10, windImmune: false },
+    child: { id: "test-child", radius: 15, damage: 10, windImmune: false, price: 0, packSize: 0 },
   },
 };
 
 const FAN_3: WeaponDef = {
-  id: "test-fan", radius: 0, damage: 0, windImmune: false,
+  id: "test-fan", radius: 0, damage: 0, windImmune: false, price: 0, packSize: 0,
   split: {
     trigger: "apex", count: 3, spreadDeg: 120, centerDeg: 90,
     inheritVelocity: true, ejectionSpeed: 300,
-    child: { id: "test-fan-child", radius: 15, damage: 10, windImmune: false },
+    child: { id: "test-fan-child", radius: 15, damage: 10, windImmune: false, price: 0, packSize: 0 },
   },
 };
 

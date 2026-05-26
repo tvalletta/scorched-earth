@@ -5,4 +5,6 @@ export const BABY_MISSILE: WeaponDef = {
   radius: 20,
   damage: 25,
   windImmune: false,
+  price: 0,
+  packSize: 0,
 };
