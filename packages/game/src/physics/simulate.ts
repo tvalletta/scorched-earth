@@ -46,7 +46,9 @@ function childVelocities(
     const deg =
       spreadDeg >= 360
         ? i * (360 / count)
-        : centerDeg - spreadDeg / 2 + (count === 1 ? 0 : i * (spreadDeg / (count - 1)));
+        : count === 1
+        ? centerDeg
+        : centerDeg - spreadDeg / 2 + i * (spreadDeg / (count - 1));
     const rad = degToRad(deg);
     result.push({
       vx: Math.cos(rad) * ejectionSpeed + (inheritVelocity ? parentVx : 0),

@@ -80,8 +80,10 @@ describe("simulateProjectile — split weapons", () => {
 
   it("child carveOp uses child weapon radius", () => {
     const r = simulateProjectile(base(RADIAL_3));
-    for (const c of r.children!) {
-      if (c.carveOp) expect(c.carveOp.radius).toBe(15);
+    const withCarve = r.children!.filter((c) => c.carveOp !== null);
+    expect(withCarve.length).toBeGreaterThan(0);
+    for (const c of withCarve) {
+      expect(c.carveOp!.radius).toBe(15);
     }
   });
 
