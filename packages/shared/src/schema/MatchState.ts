@@ -34,4 +34,6 @@ export class MatchState extends Schema {
   @type({ map: "number" }) roundsWon = new MapSchema<number>();
   @type("number") summaryDeadlineMs = 0;
   @type("number") shopDeadlineMs = 0;
+  // Phase 4 — tick-stream
+  @type("number") resolvingTick = 0;
 }

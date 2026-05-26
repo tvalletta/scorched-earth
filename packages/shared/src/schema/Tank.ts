@@ -22,4 +22,10 @@ export class Tank extends Schema {
   @type("boolean") readyForShop = false;
   @type("number") totalDamageDealt = 0;
   @type("number") totalKills = 0;
+  // Phase 4 — shields
+  @type("string") shieldId = "";
+  @type("number") shieldHp = 0;
+  @type("number") shieldMaxHp = 0;
+  // Phase 4 — movement
+  @type("number") fuel = 0;
 }

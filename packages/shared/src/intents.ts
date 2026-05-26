@@ -6,7 +6,10 @@ export type Intent =
   | { kind: "chat"; text: string }
   | { kind: "select-weapon"; weaponId: string }
   | { kind: "buy"; weaponId: string }
-  | { kind: "ready-for-shop" };
+  | { kind: "ready-for-shop" }
+  | { kind: "move"; direction: "left" | "right"; pixels: number }
+  | { kind: "equip-shield"; shieldId: string }
+  | { kind: "use-battery" };
 
 export type IntentKind = Intent["kind"];
 
