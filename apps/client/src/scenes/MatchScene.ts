@@ -11,6 +11,7 @@ import { WindArrow } from "../hud/WindArrow";
 import { TurnTimer } from "../hud/TurnTimer";
 import { PlayerList } from "../hud/PlayerList";
 import { AimControls } from "../input/AimControls";
+import { WeaponBar } from "../hud/WeaponBar";
 
 declare global {
   interface Window {
@@ -30,6 +31,7 @@ export class MatchScene {
   private timer!: TurnTimer;
   private players!: PlayerList;
   protected aim!: AimControls;
+  private weaponBar!: WeaponBar;
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -49,6 +51,7 @@ export class MatchScene {
     this.timer = new TurnTimer();
     this.players = new PlayerList();
     this.aim = new AimControls(room);
+    this.weaponBar = new WeaponBar(room);
 
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
@@ -111,7 +114,10 @@ export class MatchScene {
       };
       sync();
       $(tank).onChange(sync);
-      if (id === this.room.sessionId) this.aim.setLocalTank(view);
+      if (id === this.room.sessionId) {
+        this.aim.setLocalTank(view);
+        this.weaponBar.wire();
+      }
     });
     $(state).tanks.onRemove((_t, id) => {
       this.tanks.get(id)?.destroy();
