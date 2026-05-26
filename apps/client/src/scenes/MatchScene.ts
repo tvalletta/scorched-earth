@@ -2,6 +2,7 @@ import { Application, Container } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import { WEAPON_REGISTRY } from "@se/game";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
@@ -128,19 +129,47 @@ export class MatchScene {
 
   private onTrajectory(msg: {
     samples: { x: number; y: number; t: number }[];
+    splitAt: { x: number; y: number; t: number } | null;
+    children: Array<{
+      samples: { x: number; y: number; t: number }[];
+      impact: { x: number; y: number } | null;
+      durationMs: number;
+      weaponId: string;
+    }>;
     impact: { x: number; y: number } | null;
+    weaponId: string;
+    durationMs: number;
   }) {
+    const parentRadius = WEAPON_REGISTRY.get(msg.weaponId)?.radius ?? 20;
+
     const proj = new ProjectileAnim(msg.samples);
     this.world.addChild(proj);
     this.activeAnims.push(proj);
-    if (msg.impact) {
-      const lastT = msg.samples[msg.samples.length - 1]?.t ?? 0;
-      const impact = msg.impact;
+
+    if (msg.splitAt && msg.children.length > 0) {
       setTimeout(() => {
-        const ex = new Explosion(impact.x, impact.y);
+        for (const child of msg.children) {
+          const cp = new ProjectileAnim(child.samples);
+          this.world.addChild(cp);
+          this.activeAnims.push(cp);
+          if (child.impact) {
+            const childRadius = WEAPON_REGISTRY.get(child.weaponId)?.radius ?? 15;
+            const { x, y } = child.impact;
+            setTimeout(() => {
+              const ex = new Explosion(x, y, childRadius);
+              this.world.addChild(ex);
+              this.activeAnims.push(ex);
+            }, child.durationMs);
+          }
+        }
+      }, msg.splitAt.t);
+    } else if (msg.impact) {
+      const { x, y } = msg.impact;
+      setTimeout(() => {
+        const ex = new Explosion(x, y, parentRadius);
         this.world.addChild(ex);
         this.activeAnims.push(ex);
-      }, lastT);
+      }, msg.durationMs);
     }
   }
   private onDamage(_msg: unknown) { /* later */ }
