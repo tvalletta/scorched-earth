@@ -179,7 +179,7 @@ export class AimControls {
 
     // Loadout display (non-host, lobby phase)
     this.loadoutDisplay = mkDiv(
-      "pointer-events:auto;color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
+      "color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
     );
 
     this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.loadoutDisplay);
