@@ -13,14 +13,6 @@ import { test, expect } from "@playwright/test";
 // and AimControls share that class. We target the WeaponBar by its distinctive
 // inline height (58px) using `querySelectorAll` + `Array.find`.
 
-// Helper selector string evaluated in-page to find the WeaponBar's slot strip.
-// WeaponBar.el has style `height:58px`; its 2nd child is the slot strip.
-const FIND_STRIP = `
-  Array.from(document.querySelectorAll('.interactive'))
-    .find(el => el.style.height === '58px')
-    ?.children[1]
-`;
-
 // ─── Test 1 ──────────────────────────────────────────────────────────────────
 // Starter loadout has 2 weapons (baby-missile, missile) → exactly 2 slot divs
 // should appear in the weapon-bar strip.
