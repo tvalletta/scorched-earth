@@ -276,7 +276,8 @@ export class MatchRoom extends Room<MatchState> {
     state.phase = "shopping";
     state.shopDeadlineMs = Date.now() + SHOP_DURATION_MS;
     for (const tank of state.tanks.values()) {
-      tank.readyForShop = false;
+      // Dead players can't see the shop, so auto-mark them ready
+      tank.readyForShop = !tank.alive;
     }
     this.shopTimerHandle = this.clock.setTimeout(() => {
       this.shopTimerHandle = null;

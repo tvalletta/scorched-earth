@@ -1,3 +1,3 @@
 import type { WeaponDef } from "../types";
 
-export const DEATH_EXPLOSION: WeaponDef = { id: "death-explosion", radius: 40, damage: 60, windImmune: true, price: 0, packSize: 0 };
+export const DEATH_EXPLOSION: WeaponDef = { id: "death-explosion", radius: 40, damage: 70, windImmune: true, price: 0, packSize: 0 };
