@@ -17,6 +17,7 @@ export class AimControls {
   private loadoutDisplay!: HTMLDivElement;
   private maxRoundsSection!: HTMLDivElement;
   private maxRoundsInput!: HTMLInputElement;
+  private inviteSection!: HTMLDivElement;
 
   private angle = 90;
   private power = 500;
@@ -204,7 +205,29 @@ export class AimControls {
       "color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
     );
 
-    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.loadoutDisplay);
+    // Invite link (host only, lobby phase)
+    this.inviteSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;align-items:center;gap:4px;");
+    const codeMatch = location.pathname.match(/^\/([A-Z0-9]{6})$/i);
+    const roomCode = codeMatch ? codeMatch[1].toUpperCase() : "";
+    const inviteUrl = `${location.origin}/${roomCode}`;
+    const inviteUrlEl = mkDiv("color:#93c5fd;font:10px 'Courier New',monospace;letter-spacing:1px;text-align:center;");
+    inviteUrlEl.textContent = inviteUrl;
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "📋 Copy link";
+    copyBtn.style.cssText =
+      "padding:3px 10px;font:bold 9px 'Courier New',monospace;border-radius:4px;" +
+      "border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);" +
+      "color:#94a3b8;cursor:pointer;";
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(inviteUrl).then(() => {
+        copyBtn.textContent = "✓ Copied!";
+        copyBtn.style.color = "#4ade80";
+        setTimeout(() => { copyBtn.textContent = "📋 Copy link"; copyBtn.style.color = "#94a3b8"; }, 2000);
+      });
+    };
+    this.inviteSection.append(mkLabel("INVITE"), inviteUrlEl, copyBtn);
+
+    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.inviteSection, this.loadoutDisplay);
   }
 
   private refreshChrome() {
@@ -223,6 +246,7 @@ export class AimControls {
       this.phaseEl.textContent = isHost ? "WAITING FOR PLAYERS" : "WAITING FOR HOST";
       this.loadoutSection.style.display = isHost ? "flex" : "none";
       this.maxRoundsSection.style.display = isHost ? "flex" : "none";
+      this.inviteSection.style.display = isHost ? "flex" : "none";
       this.loadoutDisplay.style.display = !isHost ? "block" : "none";
       if (isHost) this.refreshLoadoutBtns(this.room.state.loadoutId);
       if (!isHost) {
@@ -232,6 +256,7 @@ export class AimControls {
     } else {
       this.loadoutSection.style.display = "none";
       this.maxRoundsSection.style.display = "none";
+      this.inviteSection.style.display = "none";
       this.loadoutDisplay.style.display = "none";
       if (state.phase === "playing") {
         const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
