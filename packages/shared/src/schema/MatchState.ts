@@ -21,4 +21,5 @@ export class MatchState extends Schema {
   @type("number") maxPlayers = 10;
   @type({ map: Tank }) tanks = new MapSchema<Tank>();
   @type("string") winnerId = "";
+  @type("string") loadoutId = "standard";
 }

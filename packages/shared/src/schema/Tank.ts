@@ -1,4 +1,4 @@
-import { Schema, type } from "@colyseus/schema";
+import { Schema, MapSchema, type } from "@colyseus/schema";
 
 export class Tank extends Schema {
   @type("string") playerId = "";
@@ -13,4 +13,6 @@ export class Tank extends Schema {
   @type("number") power = 500;
   @type("boolean") alive = true;
   @type("boolean") connected = true;
+  @type("string") weaponId = "baby-missile";
+  @type({ map: "number" }) inventory = new MapSchema<number>();
 }

@@ -1,9 +1,10 @@
 export type Intent =
   | { kind: "aim"; angle: number; power: number }
   | { kind: "fire"; angle: number; power: number }
-  | { kind: "configure"; turnTimerMs: number }
+  | { kind: "configure"; turnTimerMs?: number; loadoutId?: string }
   | { kind: "ready" }
-  | { kind: "chat"; text: string };
+  | { kind: "chat"; text: string }
+  | { kind: "select-weapon"; weaponId: string };
 
 export type IntentKind = Intent["kind"];
 
