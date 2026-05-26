@@ -130,8 +130,8 @@ describe("MatchRoom — fire", () => {
     const turner = a.state.currentTurnPlayerId === a.sessionId ? a : b;
     turner.send("fire", { angle: 9999, power: -50 });
     await new Promise((r) => setTimeout(r, 6000));
-    // Should not crash — phase ends in playing or ended, terrainOps recorded
-    expect(["playing", "ended"]).toContain(a.state.phase);
+    // Should not crash — phase ends in playing, round-summary, or ended, terrainOps recorded
+    expect(["playing", "ended", "round-summary"]).toContain(a.state.phase);
     await a.leave(); await b.leave();
   });
 });

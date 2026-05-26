@@ -1,6 +1,7 @@
 import {
   MatchState, CarveOp,
   POST_PLAYBACK_BUFFER_MS,
+  ROUND_SUMMARY_DURATION_MS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   clampAngle, clampPower,
 } from "@se/shared";
@@ -12,6 +13,7 @@ import {
   WEAPON_REGISTRY,
   DEATH_EXPLOSION,
   computeDamage,
+  computeRoundEarnings,
   type TargetInfo,
   type TrajectoryResult,
   type WeaponDef,
@@ -25,6 +27,7 @@ export interface ResolveContext {
   schedule: (delayMs: number, fn: () => void) => void;
   terrain: Int16Array;
   onTurnReady?: () => void;
+  onRoundEnd?: () => void;
 }
 
 export function buildTerrainFromState(state: MatchState): Int16Array {
@@ -109,7 +112,7 @@ export function handleFire(
   });
 
   schedule(totalDuration + POST_PLAYBACK_BUFFER_MS, () => {
-    commitResolution(ctx, result);
+    commitResolution(ctx, result, sessionId);
   });
 }
 
@@ -180,13 +183,40 @@ export function applyDamagesWithChainKills(
   }
 }
 
-export function commitResolution(ctx: ResolveContext, result: TrajectoryResult): void {
-  const { state, broadcast, terrain } = ctx;
+export function commitResolution(
+  ctx: ResolveContext,
+  result: TrajectoryResult,
+  firingSessionId?: string,
+): void {
+  const { state, terrain } = ctx;
+
+  // Snapshot alive set before applying damage (to count kills)
+  const aliveBefore = new Set(
+    Array.from(state.tanks.values()).filter((t) => t.alive).map((t) => t.sessionId),
+  );
 
   applyAllCarves(ctx, result);
 
   const allDamages = collectLeafDamages(result);
   applyDamagesWithChainKills(ctx, allDamages, 0);
+
+  // Credit damage dealt and kills to the firing tank
+  if (firingSessionId) {
+    const firingTank = state.tanks.get(firingSessionId);
+    if (firingTank) {
+      const directHullDamage = allDamages.reduce((sum, d) => sum + d.hullDamage, 0);
+      firingTank.damageDealtThisRound += directHullDamage;
+
+      const aliveAfter = new Set(
+        Array.from(state.tanks.values()).filter((t) => t.alive).map((t) => t.sessionId),
+      );
+      for (const id of aliveBefore) {
+        if (!aliveAfter.has(id) && id !== firingSessionId) {
+          firingTank.killsThisRound += 1;
+        }
+      }
+    }
+  }
 
   // Settle alive tanks on terrain
   for (const t of state.tanks.values()) {
@@ -200,9 +230,7 @@ export function commitResolution(ctx: ResolveContext, result: TrajectoryResult):
 
   const alive = Array.from(state.tanks.values()).filter((t) => t.alive);
   if (alive.length <= 1) {
-    state.phase = "ended";
-    state.winnerId = alive[0]?.sessionId ?? "";
-    broadcast("match-end", { winnerId: state.winnerId });
+    endRound(ctx, alive[0]?.sessionId ?? "");
     return;
   }
 
@@ -214,4 +242,82 @@ export function commitResolution(ctx: ResolveContext, result: TrajectoryResult):
   state.phase = "playing";
   state.turnDeadlineMs = Date.now() + state.turnTimerMs;
   ctx.onTurnReady?.();
+}
+
+export function endRound(ctx: ResolveContext, roundWinnerId: string): void {
+  const { state, broadcast } = ctx;
+
+  // Compute rank before this round (by roundsWon desc, then cash desc)
+  const rankBefore = computeRanks(state);
+
+  // Award rounds won
+  if (roundWinnerId) {
+    state.roundsWon.set(
+      roundWinnerId,
+      (state.roundsWon.get(roundWinnerId) ?? 0) + 1,
+    );
+  }
+
+  // Compute earnings once per tank, award cash, accumulate totals
+  const earningsMap = new Map<string, ReturnType<typeof computeRoundEarnings>>();
+  for (const tank of state.tanks.values()) {
+    const earnings = computeRoundEarnings(
+      tank.damageDealtThisRound,
+      tank.killsThisRound,
+      tank.alive,
+    );
+    earningsMap.set(tank.sessionId, earnings);
+    tank.cash += earnings.total;
+    tank.totalDamageDealt += tank.damageDealtThisRound;
+    tank.totalKills += tank.killsThisRound;
+  }
+
+  // Compute rank after
+  const rankAfter = computeRanks(state);
+
+  // Build summary payload (earnings breakdown included for ShopScene)
+  const players = Array.from(state.tanks.values()).map((tank) => {
+    const e = earningsMap.get(tank.sessionId)!;
+    return {
+      sessionId: tank.sessionId,
+      nickname: tank.nickname,
+      damageDealt: tank.damageDealtThisRound,
+      kills: tank.killsThisRound,
+      survived: tank.alive,
+      earned: e.total,
+      damageReward: e.damageReward,
+      killReward: e.killReward,
+      survivalBonus: e.survivalBonus,
+      totalCash: tank.cash,
+      roundsWon: state.roundsWon.get(tank.sessionId) ?? 0,
+      previousRank: rankBefore.get(tank.sessionId) ?? 1,
+      newRank: rankAfter.get(tank.sessionId) ?? 1,
+    };
+  });
+
+  broadcast("round-summary", {
+    round: state.round,
+    maxRounds: state.maxRounds,
+    roundWinnerId,
+    players,
+  });
+
+  state.phase = "round-summary";
+  state.summaryDeadlineMs = Date.now() + ROUND_SUMMARY_DURATION_MS;
+
+  ctx.onRoundEnd?.();
+}
+
+function computeRanks(state: MatchState): Map<string, number> {
+  const entries = Array.from(state.tanks.values()).map((t) => ({
+    sessionId: t.sessionId,
+    roundsWon: state.roundsWon.get(t.sessionId) ?? 0,
+    cash: t.cash,
+  }));
+  entries.sort((a, b) =>
+    b.roundsWon !== a.roundsWon ? b.roundsWon - a.roundsWon : b.cash - a.cash,
+  );
+  const ranks = new Map<string, number>();
+  entries.forEach((e, i) => ranks.set(e.sessionId, i + 1));
+  return ranks;
 }
