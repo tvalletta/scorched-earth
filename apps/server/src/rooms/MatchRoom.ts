@@ -4,6 +4,7 @@ import {
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
+  LOADOUT_MAP, DEFAULT_LOADOUT_ID,
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain } from "@se/game";
@@ -28,12 +29,18 @@ export class MatchRoom extends Room<MatchState> {
     state.gravity = 250;
     this.setState(state);
 
-    this.onMessage("configure", (client, msg: { turnTimerMs: number }) => {
+    this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string }) => {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
-      const v = Number(msg?.turnTimerMs);
-      if (!Number.isFinite(v) || v < 0 || v > 5 * 60_000) return;
-      this.state.turnTimerMs = v;
+      if (typeof msg?.turnTimerMs === "number") {
+        const v = Number(msg.turnTimerMs);
+        if (Number.isFinite(v) && v >= 0 && v <= 5 * 60_000) {
+          this.state.turnTimerMs = v;
+        }
+      }
+      if (typeof msg?.loadoutId === "string" && LOADOUT_MAP.has(msg.loadoutId)) {
+        this.state.loadoutId = msg.loadoutId;
+      }
     });
 
     this.onMessage("ready", (client) => {
@@ -47,6 +54,16 @@ export class MatchRoom extends Room<MatchState> {
         this.resolveCtx(),
         client.sessionId, msg.angle, msg.power,
       );
+    });
+
+    this.onMessage("select-weapon", (client, msg: { weaponId?: string }) => {
+      if (this.state.phase !== "playing") return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank) return;
+      const weaponId = String(msg?.weaponId ?? "");
+      const count = tank.inventory.get(weaponId) ?? null;
+      if (count === null || count === 0) return;
+      tank.weaponId = weaponId;
     });
   }
 
@@ -123,6 +140,18 @@ export class MatchRoom extends Room<MatchState> {
     }
   }
 
+  private seedInventory(): void {
+    const loadout =
+      LOADOUT_MAP.get(this.state.loadoutId) ?? LOADOUT_MAP.get(DEFAULT_LOADOUT_ID)!;
+    for (const tank of this.state.tanks.values()) {
+      tank.inventory.clear();
+      for (const [weaponId, count] of Object.entries(loadout.weapons)) {
+        tank.inventory.set(weaponId, count);
+      }
+      tank.weaponId = "baby-missile";
+    }
+  }
+
   private startMatch(): void {
     this.state.phase = "playing";
     this.state.terrainSeed = (this.state.roomCode || "match") + "-v1";
@@ -134,6 +163,7 @@ export class MatchRoom extends Room<MatchState> {
     });
     this.terrain = terrain;
     this.placeTanksOn(terrain);
+    this.seedInventory();
     const first = this.state.tanks.keys().next().value;
     this.state.currentTurnPlayerId = first ?? "";
     this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
