@@ -2,6 +2,7 @@ import { Application, Container } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import type { MatchPhase } from "@se/shared";
 import { WEAPON_REGISTRY } from "@se/game";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
@@ -13,6 +14,9 @@ import { TurnTimer } from "../hud/TurnTimer";
 import { PlayerList } from "../hud/PlayerList";
 import { AimControls } from "../input/AimControls";
 import { WeaponBar } from "../hud/WeaponBar";
+import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
+import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
+import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
 
 declare global {
   interface Window {
@@ -33,6 +37,11 @@ export class MatchScene {
   private players!: PlayerList;
   protected aim!: AimControls;
   private weaponBar!: WeaponBar;
+  private roundSummaryScene: RoundSummaryScene | null = null;
+  private shopScene: ShopScene | null = null;
+  private matchEndScene: MatchEndScene | null = null;
+  private lastRoundSummaryPayload: unknown = null;
+  private lastPhase: MatchPhase = "lobby";
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -57,7 +66,12 @@ export class MatchScene {
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
-    room.onMessage("match-end", (msg) => this.onMatchEnd(msg));
+    room.onMessage("round-summary", (msg) => {
+      this.lastRoundSummaryPayload = msg;
+    });
+    room.onMessage("match-end", (msg) => {
+      this.showMatchEnd(msg);
+    });
 
     this.app.ticker.add(() => {
       this.activeAnims = this.activeAnims.filter((a) => {
@@ -101,6 +115,9 @@ export class MatchScene {
 
     const $ = getStateCallbacks(this.room);
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
+    $(state).listen("phase", (phase: MatchPhase) => {
+      this.onPhaseChange(phase);
+    });
     $(state).terrainOps.onAdd((op) => this.terrain?.carve(op));
 
     $(state).tanks.onAdd((tank, id) => {
@@ -173,5 +190,51 @@ export class MatchScene {
     }
   }
   private onDamage(_msg: unknown) { /* later */ }
-  private onMatchEnd(_msg: unknown) { /* later */ }
+
+  private onPhaseChange(phase: MatchPhase): void {
+    // Dispose previous overlay when leaving a phase
+    if (this.lastPhase === "round-summary" && phase !== "round-summary") {
+      this.roundSummaryScene?.dispose();
+      this.roundSummaryScene = null;
+    }
+    if (this.lastPhase === "shopping" && phase !== "shopping") {
+      this.shopScene?.dispose();
+      this.shopScene = null;
+    }
+    this.lastPhase = phase;
+
+    if (phase === "round-summary" && this.lastRoundSummaryPayload) {
+      this.roundSummaryScene = new RoundSummaryScene(
+        this.lastRoundSummaryPayload as RoundSummaryPayload,
+        this.room.state.summaryDeadlineMs,
+      );
+    }
+
+    if (phase === "shopping") {
+      const state = this.room.state;
+      const myTank = state.tanks.get(this.room.sessionId);
+      if (myTank) {
+        const payload = this.lastRoundSummaryPayload as RoundSummaryPayload | null;
+        const me = payload?.players?.find((p) => p.sessionId === this.room.sessionId);
+        const earnings: RoundEarningsInfo = {
+          damageReward: me?.damageReward ?? 0,
+          killReward: me?.killReward ?? 0,
+          survivalBonus: me?.survivalBonus ?? 0,
+          total: me?.earned ?? 0,
+          prevCash: Math.max(0, myTank.cash - (me?.earned ?? 0)),
+        };
+        this.shopScene = new ShopScene(this.room, earnings);
+      }
+    }
+  }
+
+  private showMatchEnd(msg: unknown): void {
+    this.matchEndScene?.dispose();
+    this.matchEndScene = new MatchEndScene(
+      msg as MatchEndPayload,
+      this.room.state.maxRounds,
+      () => { this.room.leave(); window.location.reload(); },
+      () => { this.room.leave(); window.location.reload(); },
+    );
+  }
 }
