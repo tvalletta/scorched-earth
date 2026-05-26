@@ -78,7 +78,7 @@ export class MatchRoom extends Room<MatchState> {
     this.onMessage("buy", (client, msg: { weaponId?: string }) => {
       if (this.state.phase !== "shopping") return;
       const tank = this.state.tanks.get(client.sessionId);
-      if (!tank) return;
+      if (!tank || !tank.alive) return;
 
       const weaponId = String(msg?.weaponId ?? "");
       const registry = Array.from(WEAPON_REGISTRY.values()).map((w) => ({
