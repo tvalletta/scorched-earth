@@ -20,18 +20,18 @@ describe("computeDamage", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0]!.playerId).toBe("p1");
-    expect(result[0]!.amount).toBe(25);
-    expect(result[0]!.hullDamage).toBe(25);
+    expect(result[0]!.amount).toBe(50);
+    expect(result[0]!.hullDamage).toBe(50);
   });
 
   it("applies linear falloff", () => {
-    // distance = 10, radius = 20 → 50% of 25 = 12 (floor)
+    // distance = 10, radius = 20 → 50% of 50 = 25 (floor)
     const result = computeDamage(
       { x: 100, y: 100 },
       BABY_MISSILE,
       [{ playerId: "p1", x: 110, y: 100, shieldHp: 0 }],
     );
-    expect(result[0]!.amount).toBe(12);
+    expect(result[0]!.amount).toBe(25);
   });
 
   it("treats edge of radius as 0 damage", () => {
@@ -54,8 +54,8 @@ describe("computeDamage", () => {
       ],
     );
     expect(result).toHaveLength(2);
-    expect(result.find((d) => d.playerId === "p1")?.amount).toBe(25);
-    expect(result.find((d) => d.playerId === "p2")?.amount).toBe(12);
+    expect(result.find((d) => d.playerId === "p1")?.amount).toBe(50);
+    expect(result.find((d) => d.playerId === "p2")?.amount).toBe(25);
     expect(result.find((d) => d.playerId === "p3")).toBeUndefined();
   });
 });

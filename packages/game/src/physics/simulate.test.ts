@@ -38,14 +38,14 @@ describe("simulateProjectile", () => {
   });
 
   it("135° shot lands to the right of origin", () => {
-    const r = simulateProjectile(defaultInput({ angle: 135 }));
+    const r = simulateProjectile(defaultInput({ angle: 135, power: 200 }));
     expect(r.impact).not.toBeNull();
     if (!r.impact) throw new Error("unreachable");
     expect(r.impact.x).toBeGreaterThan(800);
   });
 
   it("45° shot lands to the left of origin", () => {
-    const r = simulateProjectile(defaultInput({ angle: 45 }));
+    const r = simulateProjectile(defaultInput({ angle: 45, power: 200 }));
     expect(r.impact).not.toBeNull();
     if (!r.impact) throw new Error("unreachable");
     expect(r.impact.x).toBeLessThan(800);

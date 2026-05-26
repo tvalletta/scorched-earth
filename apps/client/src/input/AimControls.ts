@@ -39,7 +39,7 @@ export class AimControls {
 
   private buildDOM() {
     this.el.style.cssText = [
-      "position:fixed;bottom:0;left:0;right:0;",
+      "position:fixed;bottom:58px;left:0;right:0;",
       "display:flex;justify-content:center;align-items:flex-end;gap:20px;",
       "padding:10px 24px 14px;",
       "background:linear-gradient(to top,rgba(2,6,20,0.95) 0%,rgba(2,6,20,0.65) 75%,transparent 100%);",

@@ -3,7 +3,7 @@ import { computeDamage } from "./damage";
 
 const DT_MS = 1000 / 60;
 const MAX_DURATION_MS = 8000;
-const VELOCITY_SCALE = 0.6;
+const VELOCITY_SCALE = 1.0;
 const WIND_ACCEL_SCALE = 5.0;
 const MAX_SAMPLES = 100;
 

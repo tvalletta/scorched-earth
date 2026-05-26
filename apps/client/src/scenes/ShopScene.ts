@@ -111,9 +111,12 @@ export class ShopScene {
     ).join("");
 
     // Round label
-    const nextRound = state.round + 1;
     const roundLabel = this.el.querySelector<HTMLSpanElement>("#shop-round-label")!;
-    roundLabel.textContent = `→ Round ${nextRound}`;
+    if (state.round >= state.maxRounds) {
+      roundLabel.textContent = `→ END MATCH`;
+    } else {
+      roundLabel.textContent = `→ Round ${state.round + 1}`;
+    }
 
     // Build weapon grid
     this.buildGrid();

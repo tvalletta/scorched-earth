@@ -3,7 +3,7 @@ import type { WeaponDef } from "../types";
 const FUNKY_BOMB_SUB: WeaponDef = {
   id: "funky-bomb-sub",
   radius: 18,
-  damage: 20,
+  damage: 40,
   windImmune: false,
   price: 0,
   packSize: 0,

@@ -3,7 +3,7 @@ import type { WeaponDef } from "../types";
 const MIRV_SUB: WeaponDef = {
   id: "mirv-sub",
   radius: 25,
-  damage: 35,
+  damage: 70,
   windImmune: false,
   price: 0,
   packSize: 0,

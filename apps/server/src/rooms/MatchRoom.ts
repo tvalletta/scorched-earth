@@ -6,6 +6,7 @@ import {
   RECONNECT_GRACE_SEC,
   LOADOUT_MAP, DEFAULT_LOADOUT_ID,
   DEFAULT_STARTING_CASH, SHOP_DURATION_MS,
+  ROUND_SUMMARY_DURATION_MS,
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY } from "@se/game";
@@ -59,10 +60,12 @@ export class MatchRoom extends Room<MatchState> {
     });
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
-      handleFire(
-        this.resolveCtx(),
-        client.sessionId, msg.angle, msg.power,
-      );
+      const wasPlaying = this.state.phase === "playing";
+      handleFire(this.resolveCtx(), client.sessionId, msg.angle, msg.power);
+      if (wasPlaying && this.state.phase === "resolving" && this.timeoutHandle) {
+        this.timeoutHandle.clear();
+        this.timeoutHandle = null;
+      }
     });
 
     this.onMessage("select-weapon", (client, msg: { weaponId?: string }) => {
@@ -248,8 +251,12 @@ export class MatchRoom extends Room<MatchState> {
 
   private handleRoundEnd(): void {
     this.clock.setTimeout(() => {
-      this.openShop();
-    }, 5_000);
+      if (this.state.round >= this.state.maxRounds) {
+        this.endMatch();
+      } else {
+        this.openShop();
+      }
+    }, ROUND_SUMMARY_DURATION_MS);
   }
 
   private openShop(): void {
