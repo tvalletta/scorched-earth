@@ -32,7 +32,7 @@ export class MatchRoom extends Room<MatchState> {
     state.gravity = 250;
     this.setState(state);
 
-    this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string }) => {
+    this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string; maxRounds?: number }) => {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
       if (typeof msg?.turnTimerMs === "number") {
@@ -43,6 +43,12 @@ export class MatchRoom extends Room<MatchState> {
       }
       if (typeof msg?.loadoutId === "string" && LOADOUT_MAP.has(msg.loadoutId)) {
         this.state.loadoutId = msg.loadoutId;
+      }
+      if (typeof msg?.maxRounds === "number") {
+        const v = Math.round(msg.maxRounds);
+        if (v >= 1 && v <= 20) {
+          this.state.maxRounds = v;
+        }
       }
     });
 
