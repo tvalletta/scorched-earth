@@ -11,6 +11,7 @@ export {
   WEAPON_REGISTRY,
 } from "./weapons/index";
 export { DEATH_EXPLOSION } from "./weapons/death-explosion";
+export { ITEM_REGISTRY, type ItemDef } from "./items/index";
 export { computeDamage } from "./physics/damage";
 export { simulateProjectile } from "./physics/simulate";
 export { computeRoundEarnings, validatePurchase } from "./economy";
