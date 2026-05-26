@@ -12,6 +12,9 @@ export class AimControls {
   private startBtn!: HTMLButtonElement;
   private angleSlider!: HTMLInputElement;
   private powerSlider!: HTMLInputElement;
+  private loadoutSection!: HTMLDivElement;
+  private loadoutBtns: HTMLButtonElement[] = [];
+  private loadoutDisplay!: HTMLDivElement;
 
   private angle = 90;
   private power = 500;
@@ -151,7 +154,35 @@ export class AimControls {
     });
 
     actionSection.append(this.phaseEl, this.startBtn, this.fireBtn);
-    this.el.append(angleSection, powerSection, actionSection);
+
+    // Loadout section (host only, lobby phase)
+    this.loadoutSection = mkDiv(
+      "pointer-events:auto;display:none;flex-direction:column;align-items:center;gap:4px;",
+    );
+    const loadoutTitle = mkLabel("LOADOUT");
+    const loadoutLabels = ["STARTER", "STANDARD", "BONANZA"] as const;
+    this.loadoutBtns = (["starter", "standard", "bonanza"] as const).map((id, i) => {
+      const btn = document.createElement("button");
+      btn.textContent = loadoutLabels[i] ?? "";
+      btn.style.cssText =
+        "padding:3px 8px;font:bold 9px 'Courier New',monospace;border-radius:4px;" +
+        "border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);" +
+        "color:#94a3b8;cursor:pointer;";
+      btn.dataset.loadoutId = id;
+      btn.onclick = () => {
+        this.room.send("configure", { loadoutId: id });
+        this.refreshLoadoutBtns(id);
+      };
+      return btn;
+    });
+    this.loadoutSection.append(loadoutTitle, ...this.loadoutBtns);
+
+    // Loadout display (non-host, lobby phase)
+    this.loadoutDisplay = mkDiv(
+      "pointer-events:auto;color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
+    );
+
+    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.loadoutDisplay);
   }
 
   private refreshChrome() {
@@ -168,11 +199,31 @@ export class AimControls {
 
     if (inLobby) {
       this.phaseEl.textContent = isHost ? "WAITING FOR PLAYERS" : "WAITING FOR HOST";
-    } else if (state.phase === "playing") {
-      const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
-      this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
+      this.loadoutSection.style.display = isHost ? "flex" : "none";
+      this.loadoutDisplay.style.display = !isHost ? "block" : "none";
+      if (isHost) this.refreshLoadoutBtns(this.room.state.loadoutId);
+      if (!isHost) {
+        const labels: Record<string, string> = { starter: "STARTER", standard: "STANDARD", bonanza: "BONANZA" };
+        this.loadoutDisplay.textContent = "LOADOUT: " + (labels[this.room.state.loadoutId] ?? this.room.state.loadoutId.toUpperCase());
+      }
     } else {
-      this.phaseEl.textContent = state.phase.toUpperCase();
+      this.loadoutSection.style.display = "none";
+      this.loadoutDisplay.style.display = "none";
+      if (state.phase === "playing") {
+        const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
+        this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
+      } else {
+        this.phaseEl.textContent = state.phase.toUpperCase();
+      }
+    }
+  }
+
+  private refreshLoadoutBtns(activeId: string): void {
+    for (const btn of this.loadoutBtns) {
+      const active = (btn.dataset.loadoutId ?? "") === activeId;
+      btn.style.background = active ? "rgba(37,99,235,0.6)" : "rgba(0,0,0,0.3)";
+      btn.style.color = active ? "#93c5fd" : "#94a3b8";
+      btn.style.borderColor = active ? "#3b82f6" : "rgba(255,255,255,0.2)";
     }
   }
 
