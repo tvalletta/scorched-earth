@@ -1,4 +1,5 @@
 import { Container, Graphics } from "pixi.js";
+import { HpBar } from "../hud/HpBar";
 
 const COLOR_HEX: Record<string, number> = {
   red: 0xe63946,
@@ -17,6 +18,7 @@ export interface TankView {
   setPos(x: number, y: number): void;
   setAngle(angleDeg: number): void;
   setAlive(alive: boolean): void;
+  setHp(hp: number): void;
   destroy(): void;
 }
 
@@ -38,6 +40,10 @@ export function createTankView(opts: { color: string; hat: string }): Container 
   hat.position.set(0, -12);
   root.addChild(hat);
 
+  const hpBar = new HpBar();
+  hpBar.redraw(100);
+  root.addChild(hpBar);
+
   root.setPos = (x: number, y: number) => {
     root.position.set(x, y);
   };
@@ -49,7 +55,9 @@ export function createTankView(opts: { color: string; hat: string }): Container 
   };
   root.setAlive = (alive) => {
     root.alpha = alive ? 1 : 0.3;
+    hpBar.visible = alive;
   };
+  root.setHp = (hp) => hpBar.redraw(hp);
   root.destroy = () => root.removeFromParent();
   root.setAngle(90);
   return root;

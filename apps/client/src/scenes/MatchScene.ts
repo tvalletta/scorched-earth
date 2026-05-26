@@ -107,6 +107,7 @@ export class MatchScene {
         view.setPos(tank.x, tank.y);
         view.setAngle(tank.angle);
         view.setAlive(tank.alive);
+        view.setHp(tank.hp);
       };
       sync();
       $(tank).onChange(sync);
