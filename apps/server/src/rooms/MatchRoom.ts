@@ -8,7 +8,7 @@ import {
   DEFAULT_STARTING_CASH, SHOP_DURATION_MS,
   type TankColor, type TankHat,
 } from "@se/shared";
-import { generateTerrain, createPrng } from "@se/game";
+import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 
 interface JoinOptions {
@@ -67,6 +67,45 @@ export class MatchRoom extends Room<MatchState> {
       const count = tank.inventory.get(weaponId) ?? null;
       if (count === null || count === 0) return;
       tank.weaponId = weaponId;
+    });
+
+    this.onMessage("buy", (client, msg: { weaponId?: string }) => {
+      if (this.state.phase !== "shopping") return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank) return;
+
+      const weaponId = String(msg?.weaponId ?? "");
+      const registry = Array.from(WEAPON_REGISTRY.values()).map((w) => ({
+        id: w.id,
+        price: w.price,
+        packSize: w.packSize,
+      }));
+
+      const result = validatePurchase(
+        weaponId,
+        tank.cash,
+        new Map(tank.inventory.entries()),
+        registry,
+      );
+      if (!result.ok) return;
+
+      tank.cash = result.newCash;
+      for (const [id, count] of result.newInventory.entries()) {
+        tank.inventory.set(id, count);
+      }
+    });
+
+    this.onMessage("ready-for-shop", (client) => {
+      if (this.state.phase !== "shopping") return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank || !tank.alive) return;
+      tank.readyForShop = true;
+
+      const livingPlayers = Array.from(this.state.tanks.values()).filter((t) => t.alive);
+      const allReady = livingPlayers.every((t) => t.readyForShop);
+      if (allReady) {
+        this.advanceAfterShop();
+      }
     });
   }
 
