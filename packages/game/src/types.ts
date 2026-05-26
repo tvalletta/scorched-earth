@@ -1,67 +1,69 @@
-export interface Point {
-  x: number;
-  y: number;
-}
+export interface Point { x: number; y: number; }
 
 export interface TerrainOptions {
   seed: string;
-  type: "random"; // Phase 5 adds more types
+  type: "random";
   width: number;
   height: number;
 }
 
-export interface CarveOp {
-  x: number;
-  y: number;
-  radius: number;
-  tick: number;
+export interface CarveOp { x: number; y: number; radius: number; tick: number; }
+
+export interface SplitDef {
+  trigger: "apex";           // fires when vy crosses from negative to non-negative
+  count: number;             // sub-projectile count
+  spreadDeg: number;         // 360 = full radial circle; <360 = fan
+  centerDeg: number;         // screen-space fan center; 90 = straight down
+  inheritVelocity: boolean;  // add parent vx/vy to each child's ejection velocity
+  ejectionSpeed: number;     // px/s radial push per child
+  child: WeaponDef;          // weapon applied to every sub-munition
 }
 
 export interface WeaponDef {
   id: string;
-  radius: number;          // explosion radius in pixels
-  damage: number;          // max damage at impact center
-  windImmune: boolean;     // if true, wind doesn't accelerate this projectile
+  radius: number;
+  damage: number;
+  windImmune: boolean;
+  split?: SplitDef;
 }
 
 export interface TargetInfo {
   playerId: string;
   x: number;
   y: number;
-  shieldHp: number; // Phase 1: always 0
+  shieldHp: number;
 }
 
 export interface DamageEntry {
   playerId: string;
   amount: number;
-  shieldDamage: number; // Phase 1: always 0
+  shieldDamage: number;
   hullDamage: number;
 }
 
 export interface SimInput {
   weapon: WeaponDef;
   origin: Point;
-  angle: number;          // degrees, 0..180 (0=left, 90=up, 180=right)
-  power: number;          // 0..1000
-  wind: number;           // -10..+10
-  gravity: number;        // px/s^2; default 9.8 * GRAVITY_SCALE
-  terrain: Int16Array;    // heightmap, length = TERRAIN_WIDTH
+  angle: number;
+  power: number;
+  wind: number;
+  gravity: number;
+  terrain: Int16Array;
   terrainWidth: number;
   terrainHeight: number;
-  walls: "none";          // Phase 5 adds more
+  walls: "none";
   targets: TargetInfo[];
+  initialVelocity?: { vx: number; vy: number }; // overrides angle+power when set
 }
 
-export interface TrajectorySample {
-  x: number;
-  y: number;
-  t: number; // ms since shot start
-}
+export interface TrajectorySample { x: number; y: number; t: number; }
 
 export interface TrajectoryResult {
   samples: TrajectorySample[];
-  impact: Point | null; // null if projectile exited bounds without hitting
+  impact: Point | null;
   durationMs: number;
-  carveOp: CarveOp | null; // null if no impact
-  damages: DamageEntry[]; // empty if no impact
+  carveOp: CarveOp | null;
+  damages: DamageEntry[];
+  splitAt?: TrajectorySample;
+  children?: TrajectoryResult[];
 }
