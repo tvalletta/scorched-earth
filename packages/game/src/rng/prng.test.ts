@@ -52,4 +52,35 @@ describe("createPrng", () => {
       expect(c).toBeLessThan(N / 10 * 1.15);
     }
   });
+
+  it("pick returns an element from the array", () => {
+    const p = createPrng("pick-test");
+    const arr = ["a", "b", "c", "d"];
+    for (let i = 0; i < 200; i++) {
+      const v = p.pick(arr);
+      expect(arr).toContain(v);
+    }
+  });
+
+  it("pick covers all elements given enough draws", () => {
+    const p = createPrng("pick-coverage");
+    const arr = [1, 2, 3, 4, 5];
+    const seen = new Set<number>();
+    for (let i = 0; i < 500; i++) seen.add(p.pick(arr));
+    expect(seen.size).toBe(5);
+  });
+
+  it("pick throws on empty array", () => {
+    const p = createPrng("pick-empty");
+    expect(() => p.pick([])).toThrow("pick: empty array");
+  });
+
+  it("pick is deterministic — same seed same sequence", () => {
+    const a = createPrng("pick-det");
+    const b = createPrng("pick-det");
+    const arr = ["x", "y", "z"];
+    for (let i = 0; i < 50; i++) {
+      expect(a.pick(arr)).toBe(b.pick(arr));
+    }
+  });
 });

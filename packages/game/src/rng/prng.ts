@@ -1,6 +1,7 @@
 export interface Prng {
   nextFloat(): number;
   nextInt(min: number, max: number): number;
+  pick<T>(arr: T[]): T;
 }
 
 // xoshiro128** — fast, high-quality, deterministic PRNG.
@@ -53,6 +54,10 @@ export function createPrng(seed: string): Prng {
     nextInt(min: number, max: number): number {
       const range = max - min + 1;
       return min + Math.floor(this.nextFloat() * range);
+    },
+    pick<T>(arr: T[]): T {
+      if (arr.length === 0) throw new Error("pick: empty array");
+      return arr[Math.floor(this.nextFloat() * arr.length)]!;
     },
   };
 }
