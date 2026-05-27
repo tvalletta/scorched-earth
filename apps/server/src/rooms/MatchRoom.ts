@@ -8,7 +8,9 @@ import {
   DEFAULT_STARTING_CASH, SHOP_DURATION_MS,
   ROUND_SUMMARY_DURATION_MS,
   SHIELD_DEFS,
+  parsePool, ALL_TERRAIN_TYPES, ALL_WALL_MODES,
   type TankColor, type TankHat,
+  type TerrainType,
 } from "@se/shared";
 import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
@@ -46,7 +48,7 @@ export class MatchRoom extends Room<MatchState> {
     // (used by the tick loop) fire at the expected rate in all environments.
     this.setSimulationInterval(() => {}, 1000 / 60);
 
-    this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string; maxRounds?: number }) => {
+    this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string; maxRounds?: number; terrainTypePool?: string; wallModePool?: string }) => {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
       if (typeof msg?.turnTimerMs === "number") {
@@ -63,6 +65,14 @@ export class MatchRoom extends Room<MatchState> {
         if (v >= 1 && v <= 20) {
           this.state.maxRounds = v;
         }
+      }
+      if (typeof msg?.terrainTypePool === "string") {
+        const parsed = parsePool(msg.terrainTypePool, ALL_TERRAIN_TYPES);
+        if (parsed.length > 0) this.state.terrainTypePool = msg.terrainTypePool;
+      }
+      if (typeof msg?.wallModePool === "string") {
+        const parsed = parsePool(msg.wallModePool, ALL_WALL_MODES);
+        if (parsed.length > 0) this.state.wallModePool = msg.wallModePool;
       }
     });
 
@@ -344,6 +354,14 @@ export class MatchRoom extends Room<MatchState> {
     }
   }
 
+  private drawRoundParams(seed: string): void {
+    const prng = createPrng(seed + "_pools");
+    const typesPool = parsePool(this.state.terrainTypePool, ALL_TERRAIN_TYPES);
+    const modesPool = parsePool(this.state.wallModePool, ALL_WALL_MODES);
+    this.state.terrainType = prng.pick(typesPool) as string;
+    this.state.wallMode = prng.pick(modesPool) as string;
+  }
+
   private startMatch(): void {
     this.matchSeed = this.state.roomCode || "match";
     this.state.round = 1;
@@ -351,9 +369,10 @@ export class MatchRoom extends Room<MatchState> {
 
     this.state.phase = "playing";
     this.state.terrainSeed = this.matchSeed + "_r1";
+    this.drawRoundParams(this.state.terrainSeed);
     const terrain = generateTerrain({
       seed: this.state.terrainSeed,
-      type: "random",
+      type: this.state.terrainType as TerrainType,
       width: TERRAIN_WIDTH,
       height: TERRAIN_HEIGHT,
     });
@@ -447,10 +466,11 @@ export class MatchRoom extends Room<MatchState> {
     state.terrainSeed = this.matchSeed + "_r" + state.round;
     state.terrainOps.clear();
     state.terrainVersion++;
+    this.drawRoundParams(state.terrainSeed);
 
     const terrain = generateTerrain({
       seed: state.terrainSeed,
-      type: "random",
+      type: state.terrainType as TerrainType,
       width: TERRAIN_WIDTH,
       height: TERRAIN_HEIGHT,
     });
