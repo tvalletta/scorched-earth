@@ -78,6 +78,70 @@ describe("MatchRoom", () => {
     await a.leave();
     await b.leave();
   });
+
+  it("host configure updates terrainTypePool", async () => {
+    const a = await joinMatch({ code: "TEST10", nickname: "A", color: "red" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("configure", { terrainTypePool: "mountains,hills,flat" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(a.state.terrainTypePool).toBe("mountains,hills,flat");
+    await a.leave();
+  });
+
+  it("host configure updates wallModePool", async () => {
+    const a = await joinMatch({ code: "TEST11", nickname: "A", color: "red" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("configure", { wallModePool: "wrap,reflect" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(a.state.wallModePool).toBe("wrap,reflect");
+    await a.leave();
+  });
+
+  it("configure with invalid pool values is rejected", async () => {
+    const a = await joinMatch({ code: "TEST12", nickname: "A", color: "red" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("configure", { terrainTypePool: "bogus,invalid" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(a.state.terrainTypePool).toBe("all"); // unchanged
+    await a.leave();
+  });
+
+  it("startMatch sets terrainType to a value in the default pool", async () => {
+    const a = await joinMatch({ code: "TEST13", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "TEST13", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    const validTypes = ["mountains","hills","valleys","cliffs","crater","sky-high","plateau","flat","random"];
+    expect(validTypes).toContain(a.state.terrainType);
+    await a.leave();
+    await b.leave();
+  });
+
+  it("startMatch sets wallMode to a value in the default pool", async () => {
+    const a = await joinMatch({ code: "TEST14", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "TEST14", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    const validModes = ["none", "wrap", "reflect", "absorb"];
+    expect(validModes).toContain(a.state.wallMode);
+    await a.leave();
+    await b.leave();
+  });
+
+  it("startMatch with custom pool only picks from that pool", async () => {
+    const a = await joinMatch({ code: "TEST15", nickname: "A", color: "red" });
+    const b = await joinMatch({ code: "TEST15", nickname: "B", color: "blue" });
+    await new Promise((r) => setTimeout(r, 30));
+    a.send("configure", { terrainTypePool: "flat" });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.terrainType).toBe("flat");
+    await a.leave();
+    await b.leave();
+  });
 });
 
 describe("MatchRoom — fire", () => {
