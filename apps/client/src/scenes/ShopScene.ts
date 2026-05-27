@@ -1,7 +1,7 @@
 import type { Room } from "colyseus.js";
 import type { MatchState } from "@se/shared";
 import { SHOP_DURATION_MS } from "@se/shared";
-import { WEAPON_REGISTRY } from "@se/game";
+import { WEAPON_REGISTRY, ITEM_REGISTRY } from "@se/game";
 
 export interface RoundEarningsInfo {
   damageReward: number;
@@ -61,6 +61,10 @@ export class ShopScene {
           <!-- Weapon grid -->
           <div style="color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🛒 Buy Weapons</div>
           <div id="shop-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+
+          <!-- Defense grid -->
+          <div style="color:#888;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px;">🛡 Buy Defense</div>
+          <div id="shop-defense-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
         </div>
 
         <!-- Right: Inventory + Cart + Ready -->
@@ -155,6 +159,28 @@ export class ShopScene {
       card.querySelector(".buy-btn")!.addEventListener("click", () => this.onBuy(weapon.id));
       grid.appendChild(card);
     }
+
+    const defenseGrid = this.el.querySelector<HTMLDivElement>("#shop-defense-grid")!;
+    defenseGrid.innerHTML = "";
+    for (const item of ITEM_REGISTRY.values()) {
+      if (item.packSize === 0) continue;
+      const card = document.createElement("div");
+      card.dataset.itemId = item.id;
+      card.style.cssText = [
+        "background:#1e1e30;border-radius:6px;padding:8px;text-align:center;cursor:pointer;",
+        "border:1px solid #5b4d9e;transition:border-color 0.1s;",
+      ].join("");
+      const label = item.id.replace(/-/g, " ").toUpperCase();
+      card.innerHTML = `
+        <div style="font-size:11px;font-weight:bold;margin-bottom:4px;">${label}</div>
+        <div style="color:#888;font-size:9px;margin-bottom:3px;">Pack of ${item.packSize}</div>
+        <div style="color:#f4c842;font-size:10px;margin-bottom:6px;">$${item.price.toLocaleString()}</div>
+        <div class="buy-btn" style="background:#5b4d9e;border-radius:3px;padding:3px;font-size:9px;cursor:pointer;">BUY</div>
+      `;
+      card.querySelector(".buy-btn")!.addEventListener("click", () => this.onBuyItem(item.id));
+      defenseGrid.appendChild(card);
+    }
+
     this.refreshAffordability();
   }
 
@@ -174,6 +200,21 @@ export class ShopScene {
     this.refreshAffordability();
   }
 
+  private onBuyItem(itemId: string): void {
+    const item = ITEM_REGISTRY.get(itemId);
+    if (!item || item.packSize === 0) return;
+    if (this.localCash < item.price) return;
+
+    this.localCash -= item.price;
+    this.localInventory.set(itemId, (this.localInventory.get(itemId) ?? 0) + item.packSize);
+
+    this.room.send("buy", { weaponId: itemId });
+    this.renderCart();
+    this.renderInventory();
+    this.renderCash();
+    this.refreshAffordability();
+  }
+
   private onReady(): void {
     this.room.send("ready-for-shop");
     if (this.readyBtn) {
@@ -184,6 +225,7 @@ export class ShopScene {
   }
 
   private refreshAffordability(): void {
+    // Existing weapon cards
     const cards = this.el.querySelectorAll<HTMLDivElement>("[data-weapon-id]");
     for (const card of cards) {
       const id = card.dataset.weaponId!;
@@ -194,6 +236,20 @@ export class ShopScene {
       card.style.opacity = canAfford ? "1" : "0.5";
       const btn = card.querySelector<HTMLDivElement>(".buy-btn")!;
       btn.style.background = canAfford ? "#3a7d44" : "#444";
+      btn.textContent = canAfford ? "BUY" : "CAN\'T AFFORD";
+    }
+
+    // Defense item cards
+    const defenseCards = this.el.querySelectorAll<HTMLDivElement>("[data-item-id]");
+    for (const card of defenseCards) {
+      const id = card.dataset.itemId!;
+      const item = ITEM_REGISTRY.get(id);
+      if (!item) continue;
+      const canAfford = this.localCash >= item.price;
+      card.style.borderColor = canAfford ? "#5b4d9e" : "#444";
+      card.style.opacity = canAfford ? "1" : "0.5";
+      const btn = card.querySelector<HTMLDivElement>(".buy-btn")!;
+      btn.style.background = canAfford ? "#5b4d9e" : "#444";
       btn.textContent = canAfford ? "BUY" : "CAN\'T AFFORD";
     }
   }

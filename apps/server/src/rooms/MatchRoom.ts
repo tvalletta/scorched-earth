@@ -10,7 +10,7 @@ import {
   SHIELD_DEFS,
   type TankColor, type TankHat,
 } from "@se/shared";
-import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
+import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
@@ -145,11 +145,10 @@ export class MatchRoom extends Room<MatchState> {
       if (!tank || !tank.alive) return;
 
       const weaponId = String(msg?.weaponId ?? "");
-      const registry = Array.from(WEAPON_REGISTRY.values()).map((w) => ({
-        id: w.id,
-        price: w.price,
-        packSize: w.packSize,
-      }));
+      const registry = [
+        ...Array.from(WEAPON_REGISTRY.values()).map((w) => ({ id: w.id, price: w.price, packSize: w.packSize })),
+        ...Array.from(ITEM_REGISTRY.values()).map((i) => ({ id: i.id, price: i.price, packSize: i.packSize })),
+      ];
 
       const result = validatePurchase(
         weaponId,
