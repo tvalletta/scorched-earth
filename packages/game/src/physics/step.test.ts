@@ -143,3 +143,53 @@ describe("stepProjectiles — absorb shield", () => {
     expect(result.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
   });
 });
+
+describe("stepProjectiles — deflector shield", () => {
+  function deflectTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
+    return {
+      sessionId: "defender",
+      x: 800, y: 490,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+      ...overrides,
+    };
+  }
+
+  it("emits shield-deflect and projectile survives (remains in survivors)", () => {
+    const tank = deflectTank();
+    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-deflect")).toBeDefined();
+    expect(result.survivors).toHaveLength(1);
+  });
+
+  it("reflected projectile has reversed vy component (hits from above → bounces up)", () => {
+    const tank = deflectTank({ x: 800, y: 500 });
+    // Projectile coming straight down toward tank center — nx≈0, ny≈-1 after entering radius
+    const p = makeProjectile({ x: 800, y: 440, vx: 0, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const deflected = result.survivors[0];
+    expect(deflected).toBeDefined();
+    expect(deflected!.vy).toBeLessThan(0); // reflected upward
+  });
+
+  it("reduces shield HP by hpCostFraction * damage", () => {
+    const tank = deflectTank();
+    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const ev = result.events.find(e => e.kind === "shield-deflect");
+    if (ev?.kind === "shield-deflect") {
+      const expectedCost = Math.floor(BABY_MISSILE.damage * 0.25);
+      expect(ev.hpAfter).toBe(500 - expectedCost);
+    }
+  });
+
+  it("does NOT deflect own projectile", () => {
+    const tank = deflectTank({ sessionId: "player1" });
+    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "player1" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-deflect")).toBeUndefined();
+  });
+});
