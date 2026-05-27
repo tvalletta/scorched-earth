@@ -244,3 +244,50 @@ describe("stepProjectiles — magnetic shield", () => {
     expect(result.events.find(e => e.kind === "shield-bend")).toBeUndefined();
   });
 });
+
+describe("stepProjectiles — reactive armor", () => {
+  function reactiveTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
+    return {
+      sessionId: "defender",
+      x: 800, y: 490,
+      shieldHp: 1, shieldMaxHp: 1,
+      shieldRadius: 50,
+      shieldType: "explode",
+      hpCostFraction: 1,
+      ...overrides,
+    };
+  }
+
+  it("removes projectile and emits shield-explode when charged (shieldHp=1)", () => {
+    const tank = reactiveTank();
+    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.survivors).toHaveLength(0);
+    expect(result.events.find(e => e.kind === "shield-explode")).toBeDefined();
+  });
+
+  it("explode event contains contact point", () => {
+    const tank = reactiveTank();
+    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const ev = result.events.find(e => e.kind === "shield-explode");
+    if (ev?.kind === "shield-explode") {
+      expect(ev.targetId).toBe("defender");
+      expect(typeof ev.x).toBe("number");
+    }
+  });
+
+  it("does NOT trigger when depleted (shieldHp=0)", () => {
+    const tank = reactiveTank({ shieldHp: 0 });
+    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-explode")).toBeUndefined();
+  });
+
+  it("does NOT trigger against owner's projectile", () => {
+    const tank = reactiveTank({ sessionId: "player1" });
+    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "player1" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-explode")).toBeUndefined();
+  });
+});
