@@ -358,8 +358,8 @@ export class MatchRoom extends Room<MatchState> {
     const prng = createPrng(seed + "_pools");
     const typesPool = parsePool(this.state.terrainTypePool, ALL_TERRAIN_TYPES);
     const modesPool = parsePool(this.state.wallModePool, ALL_WALL_MODES);
-    this.state.terrainType = prng.pick(typesPool) as string;
-    this.state.wallMode = prng.pick(modesPool) as string;
+    this.state.terrainType = prng.pick(typesPool);
+    this.state.wallMode = prng.pick(modesPool);
   }
 
   private startMatch(): void {
