@@ -1,8 +1,10 @@
+import type { TerrainType, WallMode } from "@se/shared";
+
 export interface Point { x: number; y: number; }
 
 export interface TerrainOptions {
   seed: string;
-  type: "random";
+  type: TerrainType;
   width: number;
   height: number;
 }
@@ -53,7 +55,7 @@ export interface SimInput {
   terrain: Int16Array;
   terrainWidth: number;
   terrainHeight: number;
-  walls: "none";
+  wallMode: WallMode;
   targets: TargetInfo[];
   initialVelocity?: { vx: number; vy: number }; // overrides angle+power when set
 }
@@ -105,6 +107,7 @@ export interface StepInput {
   wind: number;
   gravity: number;
   dt: number;
+  wallMode: WallMode;
 }
 
 export type StepEvent =

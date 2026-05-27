@@ -92,7 +92,7 @@ describe("chain kill resolution", () => {
       angle: 90, power: 1,
       wind: 0, gravity: 250,
       terrain, terrainWidth: TERRAIN_WIDTH, terrainHeight: TERRAIN_HEIGHT,
-      walls: "none",
+      wallMode: "none",
       targets: [{ playerId: "p1", x: t1.x, y: t1.y, shieldHp: 0 }],
     });
     const ctx = makeCtx(state, terrain);
