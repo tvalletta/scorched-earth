@@ -19,6 +19,10 @@ export class MatchState extends Schema {
   @type("number") gravity = 250;
   @type("string") terrainSeed = "";
   @type("string") terrainType = "random";
+  // Phase 5 — terrain variety & walls
+  @type("string") wallMode = "none";
+  @type("string") terrainTypePool = "all";
+  @type("string") wallModePool = "all";
   @type("number") terrainVersion = 0;
   @type([CarveOp]) terrainOps = new ArraySchema<CarveOp>();
   @type("string") currentTurnPlayerId = "";
