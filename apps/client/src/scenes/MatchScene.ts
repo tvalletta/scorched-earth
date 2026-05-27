@@ -73,13 +73,7 @@ export class MatchScene {
     room.onMessage("shield-hit", (msg: { targetId: string; type: string }) => {
       this.tanks.get(msg.targetId)?.flashShield();
     });
-    room.onMessage("patriot-launched", (_msg: unknown) => {
-      // Patriot appears via tick stream — no extra handling needed
-    });
-    room.onMessage("tank-moved", (_msg: { sessionId: string; toX: number; fuelUsed: number }) => {
-      const tank = this.room.state.tanks.get(this.room.sessionId);
-      if (tank) this.aim.updateFuel(tank.fuel);
-    });
+    room.onMessage("tank-moved", (_msg: unknown) => { /* fuel updated via state listener */ });
     room.onMessage("tank-fell", (msg: { sessionId: string; damage: number; parachuteUsed: boolean }) => {
       if (msg.damage > 0) {
         const tank = this.room.state.tanks.get(msg.sessionId);
