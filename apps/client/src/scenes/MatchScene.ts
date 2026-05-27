@@ -14,6 +14,7 @@ import { TurnTimer } from "../hud/TurnTimer";
 import { PlayerList } from "../hud/PlayerList";
 import { AimControls } from "../input/AimControls";
 import { WeaponBar } from "../hud/WeaponBar";
+import { RoundInfo } from "../hud/RoundInfo";
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
 import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
 import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
@@ -39,6 +40,7 @@ export class MatchScene {
   private players!: PlayerList;
   protected aim!: AimControls;
   private weaponBar!: WeaponBar;
+  private roundInfo!: RoundInfo;
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -141,6 +143,14 @@ export class MatchScene {
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });
+
+    this.roundInfo = new RoundInfo();
+    $(state).listen("terrainType", (type) => {
+      this.roundInfo.update(type, state.wallMode);
+    });
+    $(state).listen("wallMode", (mode) => {
+      this.roundInfo.update(state.terrainType, mode);
+    });
     $(state).terrainOps.onAdd((op) => {
       const particles = this.terrain?.carve(op);
       if (particles) {
@@ -208,6 +218,8 @@ export class MatchScene {
   private onDamage(_msg: unknown) { /* later */ }
 
   private onPhaseChange(phase: MatchPhase): void {
+    if (phase === "lobby") this.roundInfo?.hide();
+
     // Dispose previous overlay when leaving a phase
     if (this.lastPhase === "round-summary" && phase !== "round-summary") {
       this.roundSummaryScene?.dispose();
