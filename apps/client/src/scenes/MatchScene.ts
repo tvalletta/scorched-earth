@@ -2,7 +2,7 @@ import { Application, Container } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
-import type { MatchPhase } from "@se/shared";
+import type { MatchPhase, TerrainType } from "@se/shared";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
@@ -127,7 +127,7 @@ export class MatchScene {
     const buildTerrain = (seed: string) => {
       if (!seed) return;
       if (this.terrain) this.terrain.removeFromParent();
-      const t = new TerrainRenderer(seed);
+      const t = new TerrainRenderer(seed, state.terrainType as TerrainType);
       this.world.addChildAt(t, 1); // index 1 = behind tanks, in front of sky
       this.terrain = t;
     };
@@ -137,6 +137,7 @@ export class MatchScene {
 
     const $ = getStateCallbacks(this.room);
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
+    $(state).listen("terrainType", () => buildTerrain(state.terrainSeed));
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });

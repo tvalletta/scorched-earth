@@ -1,5 +1,6 @@
 import { Container, Graphics } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import type { TerrainType } from "@se/shared";
 import { generateTerrain, carveInPlace } from "@se/game";
 import { DirtParticles } from "./DirtParticles";
 
@@ -7,11 +8,11 @@ export class TerrainRenderer extends Container {
   private heightmap: Int16Array;
   private graphics: Graphics;
 
-  constructor(seed: string) {
+  constructor(seed: string, type: TerrainType = "random") {
     super();
     this.heightmap = generateTerrain({
       seed,
-      type: "random",
+      type,
       width: TERRAIN_WIDTH,
       height: TERRAIN_HEIGHT,
     });
@@ -46,6 +47,10 @@ export class TerrainRenderer extends Container {
   heightAt(x: number): number {
     const i = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(x)));
     return this.heightmap[i] ?? 0;
+  }
+
+  getHeightmap(): Int16Array {
+    return this.heightmap;
   }
 
   private redraw() {
