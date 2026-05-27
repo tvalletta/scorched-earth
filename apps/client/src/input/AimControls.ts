@@ -23,6 +23,8 @@ export class AimControls {
   private power = 500;
   private localTank: { setAngle(deg: number): void } | null = null;
 
+  private onAimChange?: (angle: number, power: number) => void;
+
   private inputMode: "drive" | "aim" = "aim";
   private driveHeld: "left" | "right" | null = null;
   private driveInterval: ReturnType<typeof setInterval> | null = null;
@@ -45,6 +47,14 @@ export class AimControls {
 
   setLocalTank(view: { setAngle(deg: number): void } | null): void {
     this.localTank = view;
+  }
+
+  setAimChangeCallback(cb: (angle: number, power: number) => void): void {
+    this.onAimChange = cb;
+  }
+
+  getAim(): { angle: number; power: number } {
+    return { angle: this.angle, power: this.power };
   }
 
   private buildDOM() {
@@ -312,12 +322,14 @@ export class AimControls {
     this.angleSlider.value = String(this.angle);
     this.localTank?.setAngle(this.angle);
     this.redrawAngle();
+    this.onAimChange?.(this.angle, this.power);
   }
 
   private setPower(v: number) {
     this.power = clampPower(v);
     this.powerSlider.value = String(this.power);
     this.redrawPower();
+    this.onAimChange?.(this.angle, this.power);
   }
 
   // Canvas: 160 × 100. Pivot at (80, 94). Arc radius 82.

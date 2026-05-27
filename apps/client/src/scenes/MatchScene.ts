@@ -2,7 +2,9 @@ import { Application, Container } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
-import type { MatchPhase, TerrainType } from "@se/shared";
+import type { MatchPhase, TerrainType, WallMode } from "@se/shared";
+import { simulateProjectile, WEAPON_REGISTRY } from "@se/game";
+import { TrajectoryOverlay } from "../render/TrajectoryOverlay";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
@@ -41,6 +43,7 @@ export class MatchScene {
   protected aim!: AimControls;
   private weaponBar!: WeaponBar;
   private roundInfo!: RoundInfo;
+  private trajectoryOverlay!: TrajectoryOverlay;
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -137,6 +140,13 @@ export class MatchScene {
     this.projectileRenderer = new ProjectileRenderer(this.world);
     this.patriotRenderer = new PatriotRenderer(this.world);
 
+    this.trajectoryOverlay = new TrajectoryOverlay();
+    this.world.addChild(this.trajectoryOverlay);
+
+    this.aim.setAimChangeCallback((angle, power) => {
+      this.updateTrajectory(angle, power);
+    });
+
     const $ = getStateCallbacks(this.room);
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
     $(state).listen("terrainType", () => buildTerrain(state.terrainSeed));
@@ -218,6 +228,7 @@ export class MatchScene {
   private onDamage(_msg: unknown) { /* later */ }
 
   private onPhaseChange(phase: MatchPhase): void {
+    if (phase !== "playing") this.trajectoryOverlay?.clear();
     if (phase === "lobby") this.roundInfo?.hide();
 
     // Dispose previous overlay when leaving a phase
@@ -254,6 +265,32 @@ export class MatchScene {
         this.shopScene = new ShopScene(this.room, earnings);
       }
     }
+  }
+
+  private updateTrajectory(angle: number, power: number): void {
+    const state = this.room.state;
+    if (state.phase !== "playing") { this.trajectoryOverlay.clear(); return; }
+    if (state.currentTurnPlayerId !== this.room.sessionId) { this.trajectoryOverlay.clear(); return; }
+    const tank = state.tanks.get(this.room.sessionId);
+    if (!tank || !this.terrain) { this.trajectoryOverlay.clear(); return; }
+    const weapon = WEAPON_REGISTRY.get(tank.weaponId);
+    if (!weapon) { this.trajectoryOverlay.clear(); return; }
+
+    const result = simulateProjectile({
+      weapon,
+      origin: { x: tank.x, y: tank.y },
+      angle,
+      power,
+      wind: state.wind,
+      gravity: state.gravity,
+      terrain: this.terrain.getHeightmap(),
+      terrainWidth: TERRAIN_WIDTH,
+      terrainHeight: TERRAIN_HEIGHT,
+      wallMode: state.wallMode as WallMode,
+      targets: [],
+    });
+
+    this.trajectoryOverlay.draw(result.samples);
   }
 
   private showMatchEnd(msg: unknown): void {
