@@ -61,12 +61,11 @@ function childVelocities(
 export function simulateProjectile(input: SimInput): TrajectoryResult {
   const {
     weapon, origin, angle, power, wind, gravity,
-    terrain, terrainWidth, terrainHeight, walls, targets,
+    terrain, terrainWidth, terrainHeight, wallMode, targets,
     initialVelocity,
   } = input;
 
   const SOFT_BOTTOM = terrainHeight + 200;
-  void walls;
 
   let { vx, vy } = initialVelocity ?? initialVelocityFromAnglePower(angle, power);
   const dtSec = DT_MS / 1000;
@@ -111,7 +110,27 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
       };
     }
 
-    if (x < 0 || x >= terrainWidth) { rawSamples.push({ x, y, t }); break; }
+    if (x < 0 || x >= terrainWidth) {
+      if (wallMode === "wrap") {
+        x = ((x % terrainWidth) + terrainWidth) % terrainWidth;
+        rawSamples.push({ x, y, t });
+        // continue simulation — projectile wraps
+      } else if (wallMode === "reflect") {
+        vx = -vx;
+        x = x < 0 ? 0 : terrainWidth - 1;
+        rawSamples.push({ x, y, t });
+        // continue simulation — projectile bounces
+      } else if (wallMode === "absorb") {
+        const edgeX = x < 0 ? 0 : terrainWidth - 1;
+        rawSamples.push({ x: edgeX, y, t });
+        impact = { x: edgeX, y };
+        break;
+      } else {
+        // "none" — trajectory ends at edge
+        rawSamples.push({ x, y, t });
+        break;
+      }
+    }
     if (y > SOFT_BOTTOM) { rawSamples.push({ x, y, t }); break; }
 
     const surfaceY = heightAt(terrain, x);
