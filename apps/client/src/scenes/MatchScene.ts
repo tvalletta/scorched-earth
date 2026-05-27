@@ -149,15 +149,15 @@ export class MatchScene {
 
     const $ = getStateCallbacks(this.room);
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
-    $(state).listen("terrainType", () => buildTerrain(state.terrainSeed));
+    $(state).listen("terrainType", (type) => {
+      buildTerrain(state.terrainSeed);
+      this.roundInfo.update(type, state.wallMode);
+    });
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });
 
     this.roundInfo = new RoundInfo();
-    $(state).listen("terrainType", (type) => {
-      this.roundInfo.update(type, state.wallMode);
-    });
     $(state).listen("wallMode", (mode) => {
       this.roundInfo.update(state.terrainType, mode);
     });
@@ -204,6 +204,10 @@ export class MatchScene {
       if (turnId === this.room.sessionId) {
         const tank = this.room.state.tanks.get(turnId);
         if (tank) this.aim.setDriveMode(tank.fuel, tank.fuel);
+        const { angle, power } = this.aim.getCurrentAim();
+        this.updateTrajectory(angle, power);
+      } else {
+        this.trajectoryOverlay.clear();
       }
     });
 
@@ -278,7 +282,7 @@ export class MatchScene {
 
     const result = simulateProjectile({
       weapon,
-      origin: { x: tank.x, y: tank.y },
+      origin: { x: tank.x, y: tank.y - 5 },
       angle,
       power,
       wind: state.wind,

@@ -53,7 +53,7 @@ export class AimControls {
     this.onAimChange = cb;
   }
 
-  getAim(): { angle: number; power: number } {
+  getCurrentAim(): { angle: number; power: number } {
     return { angle: this.angle, power: this.power };
   }
 
