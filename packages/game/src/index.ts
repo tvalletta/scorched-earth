@@ -1,5 +1,7 @@
 export { createPrng } from "./rng/prng";
 export type { Prng } from "./rng/prng";
+export type { TerrainType, WallMode } from "@se/shared";
+export { ALL_TERRAIN_TYPES, ALL_WALL_MODES, parsePool } from "@se/shared";
 export type {
   Point, TerrainOptions, CarveOp, WeaponDef, SplitDef, TargetInfo,
   DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
