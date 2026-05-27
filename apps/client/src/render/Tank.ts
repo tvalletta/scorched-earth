@@ -1,5 +1,6 @@
 import { Container, Graphics } from "pixi.js";
 import { HpBar } from "../hud/HpBar";
+import { ShieldBubble } from "./Shield";
 
 const COLOR_HEX: Record<string, number> = {
   red: 0xe63946,
@@ -14,11 +15,19 @@ const COLOR_HEX: Record<string, number> = {
   lime: 0xa6d96a,
 };
 
+// HP bar sits at y=-26, height=5px. Fuel bar goes 4px below: y = -26 + 5 + 4 = -17.
+const FUEL_BAR_Y = -17;
+const FUEL_BAR_W = 40;
+const FUEL_BAR_H = 4;
+
 export interface TankView {
   setPos(x: number, y: number): void;
   setAngle(angleDeg: number): void;
   setAlive(alive: boolean): void;
   setHp(hp: number): void;
+  setShield(shieldId: string, shieldHp: number, shieldMaxHp: number): void;
+  flashShield(): void;
+  setFuel(fuel: number, maxFuel: number): void;
   destroy(): void;
 }
 
@@ -44,6 +53,13 @@ export function createTankView(opts: { color: string; hat: string }): Container 
   hpBar.redraw(100);
   root.addChild(hpBar);
 
+  const shieldBubble = new ShieldBubble();
+  root.addChild(shieldBubble);
+
+  const fuelBar = new Graphics();
+  fuelBar.position.set(-FUEL_BAR_W / 2, FUEL_BAR_Y);
+  root.addChild(fuelBar);
+
   root.setPos = (x: number, y: number) => {
     root.position.set(x, y);
   };
@@ -58,6 +74,19 @@ export function createTankView(opts: { color: string; hat: string }): Container 
     hpBar.visible = alive;
   };
   root.setHp = (hp) => hpBar.redraw(hp);
+  root.setShield = (shieldId: string, shieldHp: number, shieldMaxHp: number) => {
+    shieldBubble.update(shieldId, shieldHp, shieldMaxHp);
+  };
+  root.flashShield = () => shieldBubble.flash();
+  root.setFuel = (fuel: number, maxFuel: number) => {
+    fuelBar.clear();
+    // Background track
+    fuelBar.rect(0, 0, FUEL_BAR_W, FUEL_BAR_H).fill({ color: 0x000000, alpha: 0.5 });
+    const fraction = maxFuel > 0 ? Math.max(0, Math.min(1, fuel / maxFuel)) : 0;
+    if (fraction > 0) {
+      fuelBar.rect(0, 0, Math.round(FUEL_BAR_W * fraction), FUEL_BAR_H).fill({ color: 0x4ecdc4, alpha: 1 });
+    }
+  };
   root.destroy = () => root.removeFromParent();
   root.setAngle(90);
   return root;
