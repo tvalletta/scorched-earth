@@ -23,12 +23,21 @@ export class AimControls {
   private power = 500;
   private localTank: { setAngle(deg: number): void } | null = null;
 
+  private inputMode: "drive" | "aim" = "aim";
+  private driveHeld: "left" | "right" | null = null;
+  private driveInterval: ReturnType<typeof setInterval> | null = null;
+  private maxFuel = 0;
+  private driveHUD!: HTMLDivElement;
+  private fuelBarFill!: HTMLDivElement;
+  private fuelLabel!: HTMLSpanElement;
+
   constructor(private room: Room<MatchState>) {
     this.el = document.createElement("div");
     this.el.className = "interactive";
     this.buildDOM();
     document.getElementById("ui")!.appendChild(this.el);
     window.addEventListener("keydown", this.onKey);
+    window.addEventListener("keyup", this.onKeyUp);
     setInterval(() => this.refreshChrome(), 200);
     this.redrawAngle();
     this.redrawPower();
@@ -227,6 +236,28 @@ export class AimControls {
     };
     this.inviteSection.append(mkLabel("INVITE"), inviteUrlEl, copyBtn);
 
+    // ── Drive HUD ──────────────────────────────────────────────────────────
+    this.driveHUD = mkDiv(
+      "pointer-events:auto;display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);" +
+        "background:rgba(2,6,20,0.92);border:1px solid #4ecdc4;border-radius:6px;" +
+        "padding:8px 14px;display:flex;flex-direction:column;align-items:center;gap:5px;",
+    );
+    this.driveHUD.style.display = "none"; // hide by default (overrides inline display:flex above)
+    const driveTitle = mkLabel("DRIVE MODE  ·  A / D  ·  SPACE to aim");
+    this.fuelLabel = document.createElement("span");
+    this.fuelLabel.style.cssText =
+      "color:#4ecdc4;font:bold 11px 'Courier New',monospace;letter-spacing:1px;";
+    this.fuelLabel.textContent = "Fuel: 0 / 0";
+    const fuelTrack = mkDiv(
+      "width:120px;height:8px;background:rgba(15,23,42,0.9);border:1px solid rgba(78,205,196,0.3);border-radius:3px;overflow:hidden;",
+    );
+    this.fuelBarFill = mkDiv(
+      "height:100%;width:100%;background:#4ecdc4;transition:width 0.1s linear;",
+    );
+    fuelTrack.append(this.fuelBarFill);
+    this.driveHUD.append(driveTitle, this.fuelLabel, fuelTrack);
+    document.getElementById("ui")!.appendChild(this.driveHUD);
+
     this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.inviteSection, this.loadoutDisplay);
   }
 
@@ -390,6 +421,18 @@ export class AimControls {
       document.activeElement.blur();
     }
 
+    if (this.inputMode === "drive") {
+      if (e.key === "a" || e.key === "ArrowLeft") { e.preventDefault(); this.startDrive("left"); return; }
+      if (e.key === "d" || e.key === "ArrowRight") { e.preventDefault(); this.startDrive("right"); return; }
+      if (e.key === " " || e.key === "Tab") {
+        e.preventDefault();
+        this.inputMode = "aim";
+        this.stopDrive();
+        this.renderDriveHUD(0, 0);
+        return;
+      }
+    }
+
     const big = e.shiftKey;
     if (e.code === "ArrowLeft") {
       e.preventDefault();
@@ -414,12 +457,55 @@ export class AimControls {
     this.room.send("fire", { angle: this.angle, power: this.power });
   }
 
+  setDriveMode(fuel: number, maxFuel: number): void {
+    this.maxFuel = maxFuel;
+    this.inputMode = fuel > 0 ? "drive" : "aim";
+    this.renderDriveHUD(fuel, maxFuel);
+  }
+
+  updateFuel(fuel: number): void {
+    this.renderDriveHUD(fuel, this.maxFuel);
+  }
+
+  private renderDriveHUD(fuel: number, maxFuel: number): void {
+    const show = this.inputMode === "drive";
+    this.driveHUD.style.display = show ? "flex" : "none";
+    if (show) {
+      this.fuelLabel.textContent = `Fuel: ${Math.round(fuel)} / ${maxFuel} px`;
+      const fraction = maxFuel > 0 ? Math.max(0, Math.min(1, fuel / maxFuel)) : 0;
+      this.fuelBarFill.style.width = `${Math.round(fraction * 100)}%`;
+    }
+  }
+
+  private startDrive(direction: "left" | "right"): void {
+    if (this.driveHeld === direction) return;
+    this.stopDrive();
+    this.driveHeld = direction;
+    this.driveInterval = setInterval(() => {
+      this.room.send("move", { direction, pixels: 10 });
+    }, 100);
+  }
+
+  private stopDrive(): void {
+    if (this.driveInterval !== null) { clearInterval(this.driveInterval); this.driveInterval = null; }
+    this.driveHeld = null;
+  }
+
+  private onKeyUp = (e: KeyboardEvent): void => {
+    if (e.key === "a" || e.key === "ArrowLeft" || e.key === "d" || e.key === "ArrowRight") {
+      this.stopDrive();
+    }
+  };
+
   hide() {
     this.el.remove();
   }
 
   destroy() {
     window.removeEventListener("keydown", this.onKey);
+    window.removeEventListener("keyup", this.onKeyUp);
+    this.stopDrive();
+    this.driveHUD.remove();
     this.el.remove();
   }
 }
