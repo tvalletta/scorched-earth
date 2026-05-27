@@ -1,12 +1,10 @@
 import {
   MatchState, CarveOp,
-  POST_PLAYBACK_BUFFER_MS,
   ROUND_SUMMARY_DURATION_MS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   clampAngle, clampPower,
 } from "@se/shared";
 import {
-  simulateProjectile,
   generateTerrain,
   carveInPlace,
   BABY_MISSILE,
@@ -14,10 +12,11 @@ import {
   DEATH_EXPLOSION,
   computeDamage,
   computeRoundEarnings,
-  type TargetInfo,
+  initialVelocityFromAnglePower,
   type TrajectoryResult,
   type WeaponDef,
   type DamageEntry,
+  type LiveProjectile,
 } from "@se/game";
 import { nextTurnPlayerId } from "./turnController";
 
@@ -28,6 +27,7 @@ export interface ResolveContext {
   terrain: Int16Array;
   onTurnReady?: () => void;
   onRoundEnd?: () => void;
+  startTickLoop: (projectiles: LiveProjectile[], firingSessionId: string) => void;
 }
 
 export function buildTerrainFromState(state: MatchState): Int16Array {
@@ -53,7 +53,7 @@ export function handleFire(
   rawAngle: number,
   rawPower: number,
 ): void {
-  const { state, broadcast, schedule, terrain } = ctx;
+  const { state } = ctx;
   if (state.phase !== "playing") return;
   if (state.currentTurnPlayerId !== sessionId) return;
 
@@ -65,8 +65,6 @@ export function handleFire(
   tank.angle = angle;
   tank.power = power;
 
-  state.phase = "resolving";
-
   const currentCount = tank.inventory.get(tank.weaponId) ?? -1;
   if (currentCount > 0) {
     tank.inventory.set(tank.weaponId, currentCount - 1);
@@ -77,49 +75,18 @@ export function handleFire(
   // Resolve weapon AFTER potential reset
   const weaponDef: WeaponDef = WEAPON_REGISTRY.get(tank.weaponId) ?? BABY_MISSILE;
 
-  const targets: TargetInfo[] = Array.from(state.tanks.values())
-    .filter((t) => t.alive && t.sessionId !== sessionId)
-    .map((t) => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: 0 }));
-
-  const result = simulateProjectile({
+  const { vx, vy } = initialVelocityFromAnglePower(angle, power);
+  const initial: LiveProjectile = {
+    id: `shot-${sessionId}-${state.tick}`,
+    x: tank.x, y: tank.y - 5,
+    vx, vy,
     weapon: weaponDef,
-    origin: { x: tank.x, y: tank.y - 5 },
-    angle, power,
-    wind: state.wind,
-    gravity: state.gravity,
-    terrain,
-    terrainWidth: TERRAIN_WIDTH,
-    terrainHeight: TERRAIN_HEIGHT,
-    walls: "none",
-    targets,
-  });
-
-  const totalDuration = calcTotalDuration(result);
-
-  broadcast("trajectory-resolved", {
-    samples: result.samples,
-    splitAt: result.splitAt ?? null,
-    children: (result.children ?? []).map((c) => ({
-      samples: c.samples,
-      impact: c.impact,
-      durationMs: c.durationMs,
-      weaponId: weaponDef.split?.child.id ?? weaponDef.id,
-    })),
-    impact: result.impact,
-    weaponId: weaponDef.id,
     ownerId: sessionId,
-    durationMs: totalDuration,
-  });
+    apexReached: false,
+  };
 
-  schedule(totalDuration + POST_PLAYBACK_BUFFER_MS, () => {
-    commitResolution(ctx, result, sessionId);
-  });
-}
-
-function calcTotalDuration(result: TrajectoryResult): number {
-  if (!result.children?.length) return result.durationMs;
-  const splitTime = result.splitAt?.t ?? 0;
-  return splitTime + Math.max(...result.children.map(calcTotalDuration));
+  state.phase = "resolving";
+  ctx.startTickLoop([initial], sessionId);
 }
 
 function collectLeafDamages(result: TrajectoryResult): DamageEntry[] {

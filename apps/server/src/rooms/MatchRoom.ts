@@ -9,8 +9,12 @@ import {
   ROUND_SUMMARY_DURATION_MS,
   type TankColor, type TankHat,
 } from "@se/shared";
-import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY } from "@se/game";
+import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
+import {
+  buildStepTanks, applyStepEvent, checkPatriotTriggers,
+  applyFallDamage, commitTurnEnd,
+} from "./tickLoop";
 
 interface JoinOptions {
   code: string;
@@ -26,6 +30,9 @@ export class MatchRoom extends Room<MatchState> {
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
   private observers = new Set<string>();
+  private liveProjectiles: LiveProjectile[] = [];
+  private firingSessionId = "";
+  private tickInterval: ReturnType<typeof this.clock.setInterval> | null = null;
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -127,7 +134,63 @@ export class MatchRoom extends Room<MatchState> {
       terrain: this.terrain,
       onTurnReady: () => this.armTurnTimer(),
       onRoundEnd: () => this.handleRoundEnd(),
+      startTickLoop: (projectiles, firingSessionId) => this.startTickLoop(projectiles, firingSessionId),
     };
+  }
+
+  private startTickLoop(projectiles: LiveProjectile[], firingSessionId: string): void {
+    this.liveProjectiles = projectiles;
+    this.firingSessionId = firingSessionId;
+    this.state.resolvingTick = 0;
+    this.tickInterval = this.clock.setInterval(() => this.tickLoop(), 1000 / 60);
+  }
+
+  private tickLoop(): void {
+    const result = stepProjectiles({
+      projectiles: this.liveProjectiles,
+      tanks: buildStepTanks(this.state),
+      terrain: this.terrain,
+      terrainWidth: TERRAIN_WIDTH,
+      terrainHeight: TERRAIN_HEIGHT,
+      wind: this.state.wind,
+      gravity: this.state.gravity,
+      dt: 1 / 60,
+    });
+
+    this.liveProjectiles = [...result.survivors, ...result.spawned];
+    this.state.resolvingTick++;
+
+    this.broadcast("tick", {
+      tick: this.state.resolvingTick,
+      projectiles: this.liveProjectiles
+        .filter(p => !p.isPatriot)
+        .map(p => ({ id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, weaponId: p.weapon.id })),
+      patriots: this.liveProjectiles
+        .filter(p => p.isPatriot)
+        .map(p => ({ id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy })),
+    });
+
+    const ctx = this.resolveCtx();
+    for (const event of result.events) {
+      applyStepEvent(ctx, event, this.liveProjectiles, this.firingSessionId);
+    }
+
+    for (const drain of result.shieldDrains) {
+      const tank = this.state.tanks.get(drain.sessionId);
+      if (tank && tank.shieldHp > 0) {
+        tank.shieldHp = Math.max(0, tank.shieldHp - drain.hpDrain);
+        if (tank.shieldHp <= 0) tank.shieldId = "";
+      }
+    }
+
+    const newPatriots = checkPatriotTriggers(ctx, this.liveProjectiles);
+    this.liveProjectiles.push(...newPatriots);
+
+    if (this.liveProjectiles.length === 0) {
+      if (this.tickInterval) { this.tickInterval.clear(); this.tickInterval = null; }
+      applyFallDamage(ctx);
+      commitTurnEnd(ctx);
+    }
   }
 
   private armTurnTimer(): void {

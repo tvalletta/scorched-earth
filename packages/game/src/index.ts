@@ -16,5 +16,6 @@ export { computeDamage } from "./physics/damage";
 export { simulateProjectile } from "./physics/simulate";
 export { stepProjectiles, initialVelocityFromAnglePower } from "./physics/step";
 export { computeFallDamage } from "./physics/fall-damage";
+export type { LiveProjectile, StepTankInfo, StepEvent, StepInput, StepResult } from "./types";
 export { computeRoundEarnings, validatePurchase } from "./economy";
 export type { RoundEarnings, PurchaseResult, ShopWeaponEntry } from "./economy";
