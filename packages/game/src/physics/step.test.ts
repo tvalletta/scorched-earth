@@ -13,6 +13,7 @@ const BASE_INPUT = {
   wind: 0,
   gravity: 250,
   dt: 1 / 60,
+  wallMode: "none" as const,
 };
 
 function makeProjectile(overrides: Partial<LiveProjectile> = {}): LiveProjectile {
@@ -329,5 +330,63 @@ describe("stepProjectiles — Patriot", () => {
     const patriot = makePatriot("ghost-target", { x: 800, y: 400 });
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [patriot], tanks: NO_TANKS });
     expect(result.survivors.find(p => p.id === "pat1")).toBeUndefined();
+  });
+});
+
+describe("stepProjectiles — wall modes", () => {
+  const WIDE = 1600;
+  const BASE = {
+    terrain: new Int16Array(WIDE).fill(800),
+    terrainWidth: WIDE,
+    terrainHeight: 900,
+    wind: 0,
+    gravity: 0, // no gravity so position is predictable
+    dt: 1 / 60,
+    tanks: NO_TANKS,
+  };
+
+  function flyingLeft(): LiveProjectile {
+    return makeProjectile({ x: 2, y: 100, vx: -600, vy: 0 }); // will exit left
+  }
+
+  function flyingRight(): LiveProjectile {
+    return makeProjectile({ x: WIDE - 2, y: 100, vx: 600, vy: 0 }); // will exit right
+  }
+
+  it("none — projectile that exits left emits out-of-bounds", () => {
+    const result = stepProjectiles({ ...BASE, wallMode: "none", projectiles: [flyingLeft()] });
+    const oob = result.events.find((e) => e.kind === "out-of-bounds");
+    expect(oob).toBeDefined();
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("wrap — projectile exiting right reappears at left with same vx", () => {
+    const p = flyingRight();
+    const origVx = p.vx;
+    const result = stepProjectiles({ ...BASE, wallMode: "wrap", projectiles: [p] });
+    expect(result.survivors).toHaveLength(1);
+    expect(result.survivors[0]!.vx).toBeCloseTo(origVx);
+    expect(result.survivors[0]!.x).toBeGreaterThanOrEqual(0);
+    expect(result.survivors[0]!.x).toBeLessThan(WIDE);
+    expect(result.events.find((e) => e.kind === "out-of-bounds")).toBeUndefined();
+  });
+
+  it("reflect — projectile exiting left has vx negated", () => {
+    const p = flyingLeft();
+    const origVx = p.vx;
+    const result = stepProjectiles({ ...BASE, wallMode: "reflect", projectiles: [p] });
+    expect(result.survivors).toHaveLength(1);
+    expect(result.survivors[0]!.vx).toBeCloseTo(-origVx);
+    expect(result.survivors[0]!.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it("absorb — projectile exiting right emits terrain-impact at edge", () => {
+    const result = stepProjectiles({ ...BASE, wallMode: "absorb", projectiles: [flyingRight()] });
+    const impact = result.events.find((e) => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    if (impact && impact.kind === "terrain-impact") {
+      expect(impact.x).toBe(WIDE - 1);
+    }
+    expect(result.survivors).toHaveLength(0);
   });
 });

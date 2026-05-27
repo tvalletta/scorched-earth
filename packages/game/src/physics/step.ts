@@ -40,7 +40,7 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
 }
 
 export function stepProjectiles(input: StepInput): StepResult {
-  const { projectiles, tanks, terrain, terrainWidth, terrainHeight, wind, gravity, dt } = input;
+  const { projectiles, tanks, terrain, terrainWidth, terrainHeight, wind, gravity, dt, wallMode } = input;
   const SOFT_BOTTOM = terrainHeight + 200;
 
   const survivors: LiveProjectile[] = [];
@@ -92,10 +92,33 @@ export function stepProjectiles(input: StepInput): StepResult {
       }
     }
 
-    // 4. Out-of-bounds (width or soft bottom)
-    if (p.x < 0 || p.x >= terrainWidth || p.y > SOFT_BOTTOM) {
+    // 4. Out-of-bounds — top/soft-bottom always remove; left/right use wallMode
+    if (p.y < -200) {
       events.push({ kind: "out-of-bounds", projectileId: p.id });
       continue;
+    }
+    if (p.y > SOFT_BOTTOM) {
+      events.push({ kind: "out-of-bounds", projectileId: p.id });
+      continue;
+    }
+    if (p.x < 0 || p.x >= terrainWidth) {
+      if (wallMode === "wrap") {
+        p.x = ((p.x % terrainWidth) + terrainWidth) % terrainWidth;
+        // projectile continues — fall through to terrain/shield checks
+      } else if (wallMode === "reflect") {
+        p.vx = -p.vx;
+        p.x = p.x < 0 ? 0 : terrainWidth - 1;
+        // projectile continues
+      } else if (wallMode === "absorb") {
+        const edgeX = p.x < 0 ? 0 : terrainWidth - 1;
+        events.push({ kind: "terrain-impact", projectileId: p.id,
+                      x: edgeX, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
+        continue;
+      } else {
+        // "none" and any unknown mode — remove projectile
+        events.push({ kind: "out-of-bounds", projectileId: p.id });
+        continue;
+      }
     }
 
     // 5. Shield check
