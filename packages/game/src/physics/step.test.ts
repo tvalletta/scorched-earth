@@ -193,3 +193,54 @@ describe("stepProjectiles — deflector shield", () => {
     expect(result.events.find(e => e.kind === "shield-deflect")).toBeUndefined();
   });
 });
+
+describe("stepProjectiles — magnetic shield", () => {
+  function magneticTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
+    return {
+      sessionId: "defender",
+      x: 800, y: 490,
+      shieldHp: 600, shieldMaxHp: 600,
+      shieldRadius: 100,
+      shieldType: "bend",
+      hpCostFraction: 0,
+      ...overrides,
+    };
+  }
+
+  it("projectile survives and vx/vy are modified", () => {
+    const tank = magneticTank();
+    const p = makeProjectile({ x: 800, y: 400, vx: 0, vy: 3000, ownerId: "attacker" }); // 90px away
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.survivors).toHaveLength(1);
+  });
+
+  it("emits shield-bend event", () => {
+    const tank = magneticTank();
+    const p = makeProjectile({ x: 800, y: 400, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-bend")).toBeDefined();
+  });
+
+  it("adds hpDrain to shieldDrains while projectile is in range", () => {
+    const tank = magneticTank();
+    const p = makeProjectile({ x: 800, y: 400, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.shieldDrains).toHaveLength(1);
+    expect(result.shieldDrains[0]!.sessionId).toBe("defender");
+    expect(result.shieldDrains[0]!.hpDrain).toBeGreaterThan(0);
+  });
+
+  it("no drain when projectile out of range", () => {
+    const tank = magneticTank({ x: 800, y: 490 });
+    const p = makeProjectile({ x: 800, y: 100, vy: 0, ownerId: "attacker" }); // 390px away — outside 100px radius
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.shieldDrains).toHaveLength(0);
+  });
+
+  it("does not apply bend to owner's own projectile", () => {
+    const tank = magneticTank({ sessionId: "player1" });
+    const p = makeProjectile({ x: 800, y: 400, vy: 3000, ownerId: "player1" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-bend")).toBeUndefined();
+  });
+});
