@@ -1,6 +1,6 @@
 import type { Room } from "colyseus.js";
 import type { MatchState } from "@se/shared";
-import { WEAPON_REGISTRY } from "@se/game";
+import { WEAPON_REGISTRY, ITEM_REGISTRY } from "@se/game";
 import { getStateCallbacks } from "colyseus.js";
 
 const LABELS: Record<string, string> = {
@@ -26,6 +26,7 @@ export class WeaponBar {
   private strip: HTMLDivElement;
   private leftArrow: HTMLDivElement;
   private rightArrow: HTMLDivElement;
+  private defenseRow: HTMLDivElement;
   private scrollOffset = 0;
   private weaponOrder: string[] = Array.from(WEAPON_REGISTRY.keys());
 
@@ -48,6 +49,15 @@ export class WeaponBar {
 
     this.el.append(this.leftArrow, this.strip, this.rightArrow);
     document.getElementById("ui")!.appendChild(this.el);
+
+    this.defenseRow = document.createElement("div");
+    this.defenseRow.style.cssText =
+      "position:fixed;bottom:58px;left:0;right:0;" +
+      "background:rgba(0,0,0,0.75);border-top:1px solid rgba(255,255,255,0.08);" +
+      "padding:3px 10px;font:10px 'Courier New',monospace;color:#9ca3af;" +
+      "align-items:center;gap:8px;flex-wrap:wrap;z-index:99;display:none;";
+    document.getElementById("ui")!.appendChild(this.defenseRow);
+
     window.addEventListener("keydown", this.onKey);
   }
 
@@ -55,8 +65,13 @@ export class WeaponBar {
     const $ = getStateCallbacks(this.room);
     const localTank = this.room.state.tanks.get(this.room.sessionId);
     if (!localTank) return;
-    const refresh = () => this.render(localTank.weaponId, localTank.inventory);
+    const refresh = () => {
+      this.render(localTank.weaponId, localTank.inventory);
+      this.renderDefense(localTank.shieldId, localTank.shieldHp, localTank.shieldMaxHp, localTank.inventory);
+    };
     $(localTank).listen("weaponId", refresh);
+    $(localTank).listen("shieldId", refresh);
+    $(localTank).listen("shieldHp", refresh);
     $(localTank).inventory.onAdd(refresh);
     $(localTank).inventory.onChange(refresh);
     refresh();
@@ -74,6 +89,35 @@ export class WeaponBar {
       const count = inventory.get(id) ?? 0;
       this.strip.appendChild(this.mkSlot(id, count, id === activeId, i + 1));
     });
+  }
+
+  private renderDefense(
+    shieldId: string,
+    shieldHp: number,
+    shieldMaxHp: number,
+    inventory: ReadonlyMap<string, number>,
+  ): void {
+    const parts: string[] = [];
+
+    if (shieldId && shieldHp > 0 && shieldMaxHp > 0) {
+      const pct = Math.round((shieldHp / shieldMaxHp) * 100);
+      const bars = Math.round(pct / 10);
+      const bar = "█".repeat(bars) + "░".repeat(10 - bars);
+      const label = ITEM_REGISTRY.get(shieldId)?.label ?? shieldId;
+      parts.push(`<span style="color:#4ecdc4">\u{1F6E1} ${label} ${bar} ${shieldHp}/${shieldMaxHp}</span>`);
+    }
+
+    for (const [id, def] of ITEM_REGISTRY) {
+      const count = inventory.get(id) ?? 0;
+      if (count > 0) parts.push(`${def.label} \xD7${count}`);
+    }
+
+    if (parts.length > 0) {
+      this.defenseRow.innerHTML = parts.join("&nbsp; &middot; &nbsp;");
+      this.defenseRow.style.display = "flex";
+    } else {
+      this.defenseRow.style.display = "none";
+    }
   }
 
   private mkSlot(weaponId: string, count: number, active: boolean, keyNum: number): HTMLDivElement {
@@ -151,10 +195,12 @@ export class WeaponBar {
 
   hide(): void {
     this.el.remove();
+    this.defenseRow.remove();
   }
 
   destroy(): void {
     window.removeEventListener("keydown", this.onKey);
     this.el.remove();
+    this.defenseRow.remove();
   }
 }

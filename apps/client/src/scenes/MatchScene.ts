@@ -3,11 +3,11 @@ import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { MatchPhase } from "@se/shared";
-import { WEAPON_REGISTRY } from "@se/game";
 import { SkyRenderer } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
-import { ProjectileAnim } from "../render/Projectile";
+import { ProjectileRenderer } from "../render/Projectile";
+import { PatriotRenderer } from "../render/Patriot";
 import { Explosion } from "../render/Explosion";
 import { WindArrow } from "../hud/WindArrow";
 import { TurnTimer } from "../hud/TurnTimer";
@@ -32,6 +32,8 @@ export class MatchScene {
   protected terrain?: TerrainRenderer;
   private tanks = new Map<string, ReturnType<typeof createTankView>>();
   private activeAnims: Array<{ tick(): boolean; removeFromParent(): void }> = [];
+  private projectileRenderer!: ProjectileRenderer;
+  private patriotRenderer!: PatriotRenderer;
   private wind!: WindArrow;
   private timer!: TurnTimer;
   private players!: PlayerList;
@@ -64,7 +66,30 @@ export class MatchScene {
     this.weaponBar = new WeaponBar(room);
 
     room.onStateChange.once((state) => this.onFirstState(state));
-    room.onMessage("trajectory-resolved", (msg) => this.onTrajectory(msg));
+    room.onMessage("tick", (msg: { tick: number; projectiles: {id:string;x:number;y:number;vx:number;vy:number;weaponId:string}[]; patriots: {id:string;x:number;y:number;vx:number;vy:number}[] }) => {
+      this.projectileRenderer.onTick(msg.projectiles);
+      this.patriotRenderer.onTick(msg.patriots);
+    });
+    room.onMessage("shield-hit", (msg: { targetId: string; type: string }) => {
+      this.tanks.get(msg.targetId)?.flashShield();
+    });
+    room.onMessage("patriot-launched", (_msg: unknown) => {
+      // Patriot appears via tick stream — no extra handling needed
+    });
+    room.onMessage("tank-moved", (_msg: { sessionId: string; toX: number; fuelUsed: number }) => {
+      const tank = this.room.state.tanks.get(this.room.sessionId);
+      if (tank) this.aim.updateFuel(tank.fuel);
+    });
+    room.onMessage("tank-fell", (msg: { sessionId: string; damage: number; parachuteUsed: boolean }) => {
+      if (msg.damage > 0) {
+        const tank = this.room.state.tanks.get(msg.sessionId);
+        if (tank) {
+          const ex = new Explosion(tank.x, tank.y, 20);
+          this.world.addChild(ex);
+          this.activeAnims.push(ex);
+        }
+      }
+    });
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
     room.onMessage("round-summary", (msg) => {
       this.lastRoundSummaryPayload = msg;
@@ -113,6 +138,9 @@ export class MatchScene {
       this.terrain = t;
     };
 
+    this.projectileRenderer = new ProjectileRenderer(this.world);
+    this.patriotRenderer = new PatriotRenderer(this.world);
+
     const $ = getStateCallbacks(this.room);
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
     $(state).listen("phase", (phase: MatchPhase) => {
@@ -132,6 +160,15 @@ export class MatchScene {
       };
       sync();
       $(tank).onChange(sync);
+      $(tank).listen("shieldId", () => {
+        this.tanks.get(id)?.setShield(tank.shieldId, tank.shieldHp, tank.shieldMaxHp);
+      });
+      $(tank).listen("shieldHp", () => {
+        this.tanks.get(id)?.setShield(tank.shieldId, tank.shieldHp, tank.shieldMaxHp);
+      });
+      $(tank).listen("fuel", () => {
+        if (id === this.room.sessionId) this.aim.updateFuel(tank.fuel);
+      });
       if (id === this.room.sessionId) {
         this.aim.setLocalTank(view);
         this.weaponBar.wire();
@@ -141,6 +178,12 @@ export class MatchScene {
       this.tanks.get(id)?.destroy();
       this.tanks.delete(id);
       if (id === this.room.sessionId) this.aim.setLocalTank(null);
+    });
+    $(state).listen("currentTurnPlayerId", (turnId: string) => {
+      if (turnId === this.room.sessionId) {
+        const tank = this.room.state.tanks.get(turnId);
+        if (tank) this.aim.setDriveMode(tank.fuel, tank.fuel);
+      }
     });
 
     // Observer mode: this client joined but has no tank
@@ -161,51 +204,6 @@ export class MatchScene {
     document.getElementById("ui")!.appendChild(banner);
   }
 
-  private onTrajectory(msg: {
-    samples: { x: number; y: number; t: number }[];
-    splitAt: { x: number; y: number; t: number } | null;
-    children: Array<{
-      samples: { x: number; y: number; t: number }[];
-      impact: { x: number; y: number } | null;
-      durationMs: number;
-      weaponId: string;
-    }>;
-    impact: { x: number; y: number } | null;
-    weaponId: string;
-    durationMs: number;
-  }) {
-    const parentRadius = WEAPON_REGISTRY.get(msg.weaponId)?.radius ?? 20;
-
-    const proj = new ProjectileAnim(msg.samples);
-    this.world.addChild(proj);
-    this.activeAnims.push(proj);
-
-    if (msg.splitAt && msg.children.length > 0) {
-      setTimeout(() => {
-        for (const child of msg.children) {
-          const cp = new ProjectileAnim(child.samples);
-          this.world.addChild(cp);
-          this.activeAnims.push(cp);
-          if (child.impact) {
-            const childRadius = WEAPON_REGISTRY.get(child.weaponId)?.radius ?? 15;
-            const { x, y } = child.impact;
-            setTimeout(() => {
-              const ex = new Explosion(x, y, childRadius);
-              this.world.addChild(ex);
-              this.activeAnims.push(ex);
-            }, child.durationMs);
-          }
-        }
-      }, msg.splitAt.t);
-    } else if (msg.impact) {
-      const { x, y } = msg.impact;
-      setTimeout(() => {
-        const ex = new Explosion(x, y, parentRadius);
-        this.world.addChild(ex);
-        this.activeAnims.push(ex);
-      }, msg.durationMs);
-    }
-  }
   private onDamage(_msg: unknown) { /* later */ }
 
   private onPhaseChange(phase: MatchPhase): void {
