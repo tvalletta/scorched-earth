@@ -47,6 +47,7 @@ export function stepProjectiles(input: StepInput): StepResult {
   const spawned: LiveProjectile[] = [];
   const events: StepEvent[] = [];
   const shieldDrains: Array<{ sessionId: string; hpDrain: number }> = [];
+  const intercepted = new Set<string>();
 
   for (const p of projectiles) {
     // 1. Apply physics — capture prevVy before gravity so apex detection is correct
@@ -58,9 +59,24 @@ export function stepProjectiles(input: StepInput): StepResult {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // 2. Patriot homing + intercept (handled in Task 10)
+    // 2 & 3. Patriot homing + intercept
     if (p.isPatriot) {
-      // placeholder — filled in Task 10
+      const target = projectiles.find(t => t.id === p.targetId && !t.isPatriot);
+      if (!target) continue; // target gone — remove patriot
+
+      const dx = target.x - p.x;
+      const dy = target.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 15) {
+        events.push({ kind: "patriot-intercept", patriotId: p.id, targetId: target.id, x: p.x, y: p.y });
+        intercepted.add(target.id);
+        continue; // patriot consumed
+      }
+
+      const speed = 600; // px/s
+      p.vx = (dx / dist) * speed;
+      p.vy = (dy / dist) * speed;
       survivors.push(p);
       continue;
     }
@@ -159,7 +175,7 @@ export function stepProjectiles(input: StepInput): StepResult {
   }
 
   return {
-    survivors,
+    survivors: survivors.filter(p => !intercepted.has(p.id)),
     spawned,
     events,
     shieldDrains,

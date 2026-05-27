@@ -291,3 +291,43 @@ describe("stepProjectiles — reactive armor", () => {
     expect(result.events.find(e => e.kind === "shield-explode")).toBeUndefined();
   });
 });
+
+describe("stepProjectiles — Patriot", () => {
+  function makePatriot(targetId: string, overrides: Partial<LiveProjectile> = {}): LiveProjectile {
+    return {
+      id: "pat1",
+      x: 700, y: 400,
+      vx: 0, vy: 0,
+      weapon: BABY_MISSILE,
+      ownerId: "defender",
+      apexReached: false,
+      isPatriot: true,
+      targetId,
+      ...overrides,
+    };
+  }
+
+  it("updates patriot velocity toward target each tick", () => {
+    const target = makeProjectile({ id: "enemy1", x: 900, y: 400, vy: 0, ownerId: "attacker" });
+    const patriot = makePatriot("enemy1", { x: 700, y: 400 });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [patriot, target], tanks: NO_TANKS });
+    const survivingPatriot = result.survivors.find(p => p.id === "pat1");
+    expect(survivingPatriot).toBeDefined();
+    expect(survivingPatriot!.vx).toBeGreaterThan(0); // moving right toward target at x=900
+  });
+
+  it("emits patriot-intercept and removes both when within 15px", () => {
+    const target = makeProjectile({ id: "enemy1", x: 800, y: 400, vy: 0, vx: 0, ownerId: "attacker" });
+    const patriot = makePatriot("enemy1", { x: 806, y: 404 }); // ~7px away — within 15px intercept radius
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [patriot, target], tanks: NO_TANKS });
+    expect(result.events.find(e => e.kind === "patriot-intercept")).toBeDefined();
+    expect(result.survivors.find(p => p.id === "pat1")).toBeUndefined();
+    expect(result.survivors.find(p => p.id === "enemy1")).toBeUndefined();
+  });
+
+  it("removes patriot when target is already gone from projectiles list", () => {
+    const patriot = makePatriot("ghost-target", { x: 800, y: 400 });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [patriot], tanks: NO_TANKS });
+    expect(result.survivors.find(p => p.id === "pat1")).toBeUndefined();
+  });
+});

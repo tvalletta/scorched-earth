@@ -14,5 +14,7 @@ export { DEATH_EXPLOSION } from "./weapons/death-explosion";
 export { ITEM_REGISTRY, type ItemDef } from "./items/index";
 export { computeDamage } from "./physics/damage";
 export { simulateProjectile } from "./physics/simulate";
+export { stepProjectiles, initialVelocityFromAnglePower } from "./physics/step";
+export { computeFallDamage } from "./physics/fall-damage";
 export { computeRoundEarnings, validatePurchase } from "./economy";
 export type { RoundEarnings, PurchaseResult, ShopWeaponEntry } from "./economy";
