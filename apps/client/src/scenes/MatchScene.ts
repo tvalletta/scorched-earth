@@ -140,7 +140,13 @@ export class MatchScene {
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });
-    $(state).terrainOps.onAdd((op) => this.terrain?.carve(op));
+    $(state).terrainOps.onAdd((op) => {
+      const particles = this.terrain?.carve(op);
+      if (particles) {
+        this.world.addChild(particles);
+        this.activeAnims.push(particles);
+      }
+    });
 
     $(state).tanks.onAdd((tank, id) => {
       const view = createTankView({ color: tank.color, hat: tank.hat });

@@ -50,6 +50,29 @@ describe("carveInPlace", () => {
     }
   });
 
+  it("carves a near-vertical wall when the explosion is at the wall face", () => {
+    // Build a steep wall: left plateau at y=300, right valley at y=500.
+    // Columns 40-59 transition steeply (10px drop per column).
+    const t = new Int16Array(100);
+    for (let i = 0; i < 100; i++) {
+      if (i < 40) t[i] = 300;
+      else if (i >= 60) t[i] = 500;
+      else t[i] = 300 + (i - 40) * 10; // 300..500
+    }
+
+    // Explosion at the wall face (x=50, y=500) radius=30.
+    // Without the fix, columns left of 50 (high terrain) were skipped.
+    carveInPlace(t, { x: 50, y: 500, radius: 30, tick: 0 });
+
+    // The center column and right side should definitely carve.
+    expect(t[50]).toBeGreaterThan(500);
+
+    // Left-side wall columns within the explosion radius must also carve.
+    // Column 40 (terrain=300) is 10px inside the radius (distance=10 < 30).
+    expect(t[40]).toBeGreaterThan(300);
+    expect(t[35]).toBeGreaterThan(300); // dx=15, dy=sqrt(900-225)≈26, bottom≈526
+  });
+
   it("is idempotent on the floor", () => {
     const t = flatTerrain(100, 500);
     carveInPlace(t, { x: 50, y: 500, radius: 20, tick: 0 });
