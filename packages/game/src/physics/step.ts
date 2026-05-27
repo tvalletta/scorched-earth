@@ -40,7 +40,7 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
 }
 
 export function stepProjectiles(input: StepInput): StepResult {
-  const { projectiles, terrain, terrainWidth, terrainHeight, wind, gravity, dt } = input;
+  const { projectiles, tanks, terrain, terrainWidth, terrainHeight, wind, gravity, dt } = input;
   const SOFT_BOTTOM = terrainHeight + 200;
 
   const survivors: LiveProjectile[] = [];
@@ -82,8 +82,71 @@ export function stepProjectiles(input: StepInput): StepResult {
       continue;
     }
 
-    // 5. Shield check (handled in Tasks 6–9)
-    // placeholder — filled in later tasks
+    // 5. Shield check
+    let shielded = false;
+    for (const tank of tanks) {
+      if (tank.sessionId === p.ownerId) continue; // owner's own shield never blocks
+      if (tank.shieldHp <= 0) continue;
+      if (!tank.shieldType) continue;
+      const dx = p.x - tank.x;
+      const dy = p.y - tank.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist >= tank.shieldRadius) continue;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      if (tank.shieldType === "absorb") {
+        const hpCost = Math.floor(p.weapon.damage * tank.hpCostFraction);
+        const hpBefore = tank.shieldHp;
+        const hpAfter = Math.max(0, hpBefore - hpCost);
+        events.push({ kind: "shield-absorb", projectileId: p.id, targetId: tank.sessionId, hpBefore, hpAfter });
+        tank.shieldHp = hpAfter;
+        shielded = true;
+        break;
+      }
+
+      if (tank.shieldType === "deflect") {
+        const hpCost = Math.floor(p.weapon.damage * tank.hpCostFraction);
+        const hpBefore = tank.shieldHp;
+        const hpAfter = Math.max(0, hpBefore - hpCost);
+        const dot = p.vx * nx + p.vy * ny;
+        const newVx = p.vx - 2 * dot * nx;
+        const newVy = p.vy - 2 * dot * ny;
+        p.vx = newVx;
+        p.vy = newVy;
+        tank.shieldHp = hpAfter;
+        events.push({ kind: "shield-deflect", projectileId: p.id, targetId: tank.sessionId, newVx, newVy, hpBefore, hpAfter });
+        // deflected projectile stays alive — no shielded=true
+        break;
+      }
+
+      if (tank.shieldType === "bend") {
+        const strength = 8000 / (dist * dist);
+        const impulseX = nx * strength * dt;
+        const impulseY = ny * strength * dt;
+        p.vx += impulseX;
+        p.vy += impulseY;
+        events.push({ kind: "shield-bend", projectileId: p.id, targetId: tank.sessionId, impulseX, impulseY });
+        const existing = shieldDrains.find(d => d.sessionId === tank.sessionId);
+        if (existing) {
+          existing.hpDrain = Math.max(existing.hpDrain, 15 * dt);
+        } else {
+          shieldDrains.push({ sessionId: tank.sessionId, hpDrain: 15 * dt });
+        }
+        // projectile stays alive — no shielded=true
+        break;
+      }
+
+      if (tank.shieldType === "explode") {
+        events.push({ kind: "shield-explode", projectileId: p.id, targetId: tank.sessionId, x: p.x, y: p.y });
+        tank.shieldHp = 0;
+        shielded = true;
+        break;
+      }
+    }
+
+    if (shielded) continue;
 
     // 6. Terrain collision
     const surfaceY = heightAt(terrain, p.x);

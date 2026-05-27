@@ -94,3 +94,52 @@ describe("stepProjectiles — core", () => {
     expect(result.events.find(e => e.kind === "mirv-split")).toBeUndefined();
   });
 });
+
+// Helper — builds a StepTankInfo with absorb shield
+function absorbTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
+  return {
+    sessionId: "defender",
+    x: 800, y: 490,
+    shieldHp: 200, shieldMaxHp: 200,
+    shieldRadius: 60,
+    shieldType: "absorb",
+    hpCostFraction: 0.5,
+    ...overrides,
+  };
+}
+
+describe("stepProjectiles — absorb shield", () => {
+  it("absorbs projectile within radius, emits shield-absorb", () => {
+    const tank = absorbTank();
+    const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" }); // within 60px of tank
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const ev = result.events.find(e => e.kind === "shield-absorb");
+    expect(ev).toBeDefined();
+    expect(result.survivors).toHaveLength(0);
+    if (ev?.kind === "shield-absorb") {
+      expect(ev.targetId).toBe("defender");
+      expect(ev.hpAfter).toBe(200 - Math.floor(BABY_MISSILE.damage * 0.5));
+    }
+  });
+
+  it("does NOT absorb when shield HP is 0", () => {
+    const tank = absorbTank({ shieldHp: 0 });
+    const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
+  });
+
+  it("does NOT absorb owner's own projectile", () => {
+    const tank = absorbTank({ sessionId: "player1" });
+    const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "player1" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
+  });
+
+  it("does NOT absorb projectile outside radius", () => {
+    const tank = absorbTank({ x: 800, y: 490 });
+    const p = makeProjectile({ x: 800, y: 300, vy: 5, ownerId: "attacker" }); // 190px away, shield radius=60
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    expect(result.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
+  });
+});
