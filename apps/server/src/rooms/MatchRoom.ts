@@ -10,7 +10,7 @@ import {
   SHIELD_DEFS,
   parsePool, ALL_TERRAIN_TYPES, ALL_WALL_MODES,
   type TankColor, type TankHat,
-  type TerrainType,
+  type TerrainType, type WallMode,
 } from "@se/shared";
 import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
@@ -221,6 +221,7 @@ export class MatchRoom extends Room<MatchState> {
       wind: this.state.wind,
       gravity: this.state.gravity,
       dt: 1 / 60,
+      wallMode: this.state.wallMode as WallMode,
     });
 
     this.liveProjectiles = [...result.survivors, ...result.spawned];
