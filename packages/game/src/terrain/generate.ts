@@ -162,7 +162,7 @@ function genCrater(opts: TerrainOptions): Int16Array {
   const { seed, width, height } = opts;
   const prng = createPrng(seed + "-crater");
   const craterRadius = (0.30 + prng.nextFloat() * 0.10) * width;
-  const cx = width / 2;
+  const cx = (0.30 + prng.nextFloat() * 0.40) * width;
   const noise = buildOctave(seed + "-jitter", 200, width);
   const out = new Int16Array(width);
   for (let x = 0; x < width; x++) {
@@ -231,6 +231,7 @@ function genPlateau(opts: TerrainOptions): Int16Array {
 
 function genFlat(opts: TerrainOptions): Int16Array {
   const { width, height } = opts;
+  // seed intentionally unused — flat terrain is always uniform
   return new Int16Array(width).fill(Math.round(height * 0.65));
 }
 
