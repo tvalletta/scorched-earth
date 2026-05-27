@@ -20,3 +20,27 @@ export const SHOP_DURATION_MS = 30_000;
 export const DAMAGE_REWARD_RATE = 100;   // $ per damage point dealt
 export const KILL_REWARD = 1_000;        // $ per kill
 export const SURVIVAL_BONUS = 500;       // $ for surviving the round
+
+// Phase 5 — terrain variety & walls
+export type TerrainType =
+  | "mountains" | "hills" | "valleys" | "cliffs" | "crater"
+  | "sky-high"  | "plateau" | "flat"  | "random";
+
+export const ALL_TERRAIN_TYPES: TerrainType[] = [
+  "mountains", "hills", "valleys", "cliffs", "crater",
+  "sky-high", "plateau", "flat", "random",
+];
+
+export const ALL_WALL_MODES = ["none", "wrap", "reflect", "absorb"] as const;
+export type WallMode = typeof ALL_WALL_MODES[number];
+
+export function parsePool<T extends string>(
+  pool: string,
+  all: readonly T[],
+): T[] {
+  if (!pool || pool === "all") return [...all];
+  return pool
+    .split(",")
+    .map((s) => s.trim() as T)
+    .filter((s) => (all as readonly string[]).includes(s));
+}

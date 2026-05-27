@@ -1,7 +1,8 @@
 export type Intent =
   | { kind: "aim"; angle: number; power: number }
   | { kind: "fire"; angle: number; power: number }
-  | { kind: "configure"; turnTimerMs?: number; loadoutId?: string; maxRounds?: number }
+  | { kind: "configure"; turnTimerMs?: number; loadoutId?: string; maxRounds?: number;
+      terrainTypePool?: string; wallModePool?: string }
   | { kind: "ready" }
   | { kind: "chat"; text: string }
   | { kind: "select-weapon"; weaponId: string }
