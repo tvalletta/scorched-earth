@@ -23,7 +23,7 @@ function defaultInput(overrides: Partial<SimInput> = {}): SimInput {
     terrain: flatTerrain(700),
     terrainWidth: W,
     terrainHeight: H,
-    walls: "none",
+    wallMode: "none",
     targets: [],
     ...overrides,
   };

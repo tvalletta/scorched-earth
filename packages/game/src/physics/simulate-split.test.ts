@@ -14,7 +14,7 @@ function base(weapon: WeaponDef, overrides: Partial<SimInput> = {}): SimInput {
     weapon, origin: { x: 800, y: 600 },
     angle: 90, power: 500, wind: 0, gravity: 250,
     terrain: flatTerrain(800), terrainWidth: W, terrainHeight: H,
-    walls: "none", targets: [],
+    wallMode: "none", targets: [],
     ...overrides,
   };
 }

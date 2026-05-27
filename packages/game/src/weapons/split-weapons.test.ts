@@ -11,7 +11,7 @@ function base(overrides: Partial<SimInput> = {}): SimInput {
     weapon: FUNKY_BOMB, origin: { x: 800, y: 700 },
     angle: 90, power: 500, wind: 0, gravity: 250,
     terrain: flat(800), terrainWidth: W, terrainHeight: H,
-    walls: "none", targets: [],
+    wallMode: "none", targets: [],
     ...overrides,
   };
 }
