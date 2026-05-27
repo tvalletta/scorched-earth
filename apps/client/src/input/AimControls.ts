@@ -18,6 +18,9 @@ export class AimControls {
   private maxRoundsSection!: HTMLDivElement;
   private maxRoundsInput!: HTMLInputElement;
   private inviteSection!: HTMLDivElement;
+  private poolSection!: HTMLDivElement;
+  private terrainPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
+  private wallPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
 
   private angle = 90;
   private power = 500;
@@ -246,6 +249,65 @@ export class AimControls {
     };
     this.inviteSection.append(mkLabel("INVITE"), inviteUrlEl, copyBtn);
 
+    // ── Pool pickers (host-only, lobby) ───────────────────────────────────
+    this.poolSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;align-items:flex-start;gap:6px;");
+
+    const terrainTypes = [
+      { id: "mountains", label: "Mountains" }, { id: "hills", label: "Hills" },
+      { id: "valleys", label: "Valleys" }, { id: "cliffs", label: "Cliffs" },
+      { id: "crater", label: "Crater" }, { id: "sky-high", label: "Sky High" },
+      { id: "plateau", label: "Plateau" }, { id: "flat", label: "Flat" },
+      { id: "random", label: "Random" },
+    ];
+    const wallModes = [
+      { id: "none", label: "No Walls" }, { id: "wrap", label: "Wrap" },
+      { id: "reflect", label: "Reflect" }, { id: "absorb", label: "Absorb" },
+    ];
+
+    const terrainGroup = mkDiv("display:flex;flex-direction:column;gap:3px;");
+    terrainGroup.appendChild(mkLabel("TERRAIN TYPES"));
+    const terrainRow = mkDiv("display:flex;flex-wrap:wrap;gap:4px;");
+    for (const tt of terrainTypes) {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.id = "pool-t-" + tt.id;
+      cb.style.cssText = "accent-color:#3b82f6;";
+      const lbl = document.createElement("label");
+      lbl.htmlFor = cb.id;
+      lbl.textContent = tt.label;
+      lbl.style.cssText = "color:#94a3b8;font:9px 'Courier New',monospace;cursor:pointer;";
+      const wrap = mkDiv("display:flex;align-items:center;gap:2px;");
+      wrap.append(cb, lbl);
+      terrainRow.appendChild(wrap);
+      cb.onchange = () => this.sendPoolUpdate();
+      this.terrainPoolChecks.push({ id: tt.id, el: cb });
+    }
+    terrainGroup.appendChild(terrainRow);
+
+    const wallGroup = mkDiv("display:flex;flex-direction:column;gap:3px;");
+    wallGroup.appendChild(mkLabel("WALL MODES"));
+    const wallRow = mkDiv("display:flex;gap:8px;");
+    for (const wm of wallModes) {
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.id = "pool-w-" + wm.id;
+      cb.style.cssText = "accent-color:#3b82f6;";
+      const lbl = document.createElement("label");
+      lbl.htmlFor = cb.id;
+      lbl.textContent = wm.label;
+      lbl.style.cssText = "color:#94a3b8;font:9px 'Courier New',monospace;cursor:pointer;";
+      const wrap = mkDiv("display:flex;align-items:center;gap:2px;");
+      wrap.append(cb, lbl);
+      wallRow.appendChild(wrap);
+      cb.onchange = () => this.sendPoolUpdate();
+      this.wallPoolChecks.push({ id: wm.id, el: cb });
+    }
+    wallGroup.appendChild(wallRow);
+
+    this.poolSection.append(terrainGroup, wallGroup);
+
     // ── Drive HUD ──────────────────────────────────────────────────────────
     this.driveHUD = mkDiv(
       "pointer-events:auto;display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);" +
@@ -268,7 +330,7 @@ export class AimControls {
     this.driveHUD.append(driveTitle, this.fuelLabel, fuelTrack);
     document.getElementById("ui")!.appendChild(this.driveHUD);
 
-    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.inviteSection, this.loadoutDisplay);
+    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.poolSection, this.inviteSection, this.loadoutDisplay);
   }
 
   private refreshChrome() {
@@ -294,11 +356,30 @@ export class AimControls {
         const labels: Record<string, string> = { starter: "STARTER", standard: "STANDARD", bonanza: "BONANZA" };
         this.loadoutDisplay.textContent = "LOADOUT: " + (labels[this.room.state.loadoutId] ?? this.room.state.loadoutId.toUpperCase());
       }
+      if (isHost) {
+        for (const c of [...this.terrainPoolChecks, ...this.wallPoolChecks]) {
+          c.el.disabled = false;
+        }
+        this.poolSection.style.display = "flex";
+      } else {
+        const tPool = this.room.state.terrainTypePool;
+        const wPool = this.room.state.wallModePool;
+        for (const c of this.terrainPoolChecks) {
+          c.el.checked = tPool === "all" || tPool.split(",").includes(c.id);
+          c.el.disabled = true;
+        }
+        for (const c of this.wallPoolChecks) {
+          c.el.checked = wPool === "all" || wPool.split(",").includes(c.id);
+          c.el.disabled = true;
+        }
+        this.poolSection.style.display = "flex";
+      }
     } else {
       this.loadoutSection.style.display = "none";
       this.maxRoundsSection.style.display = "none";
       this.inviteSection.style.display = "none";
       this.loadoutDisplay.style.display = "none";
+      this.poolSection.style.display = "none";
       if (state.phase === "playing") {
         const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
         this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
@@ -315,6 +396,18 @@ export class AimControls {
       btn.style.color = active ? "#93c5fd" : "#94a3b8";
       btn.style.borderColor = active ? "#3b82f6" : "rgba(255,255,255,0.2)";
     }
+  }
+
+  private sendPoolUpdate(): void {
+    const terrainTypePool = this.terrainPoolChecks
+      .filter((c) => c.el.checked)
+      .map((c) => c.id)
+      .join(",") || "all";
+    const wallModePool = this.wallPoolChecks
+      .filter((c) => c.el.checked)
+      .map((c) => c.id)
+      .join(",") || "all";
+    this.room.send("configure", { terrainTypePool, wallModePool });
   }
 
   private setAngle(v: number) {
