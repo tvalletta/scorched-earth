@@ -1,6 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import { generateTerrain, carveInPlace } from "@se/game";
+import { DirtParticles } from "./DirtParticles";
 
 export class TerrainRenderer extends Container {
   private heightmap: Int16Array;
@@ -19,9 +20,27 @@ export class TerrainRenderer extends Container {
     this.redraw();
   }
 
-  carve(op: { x: number; y: number; radius: number; tick: number }) {
+  carve(op: { x: number; y: number; radius: number; tick: number }): DirtParticles | null {
+    const { x: cx, radius } = op;
+    const xMin = Math.max(0, Math.floor(cx - radius));
+    const xMax = Math.min(TERRAIN_WIDTH - 1, Math.ceil(cx + radius));
+
+    // Snapshot pre-carve heights for columns in the blast zone.
+    const before = new Int16Array(xMax - xMin + 1);
+    for (let i = xMin; i <= xMax; i++) before[i - xMin] = this.heightmap[i]!;
+
     carveInPlace(this.heightmap, op, { terrainHeight: TERRAIN_HEIGHT });
     this.redraw();
+
+    // Build the changed-column list for the particle animation.
+    const changed: Array<{ x: number; oldY: number; newY: number }> = [];
+    for (let i = xMin; i <= xMax; i++) {
+      const oldY = before[i - xMin]!;
+      const newY = this.heightmap[i]!;
+      if (newY > oldY) changed.push({ x: i, oldY, newY });
+    }
+
+    return changed.length > 0 ? new DirtParticles(changed) : null;
   }
 
   heightAt(x: number): number {

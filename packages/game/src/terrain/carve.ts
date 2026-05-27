@@ -11,7 +11,10 @@ export interface CarveOptions {
  *  - Compute the vertical extent of the circle at that column.
  *  - If the BOTTOM of the circle is BELOW the current surface, the surface
  *    drops down to the bottom of the circle.
- *  - If the TOP of the circle is below the surface, no change (no overhangs).
+ *
+ * This correctly handles near-vertical walls: a column whose terrain sits
+ * above the explosion center (small surface Y) still gets carved as long as
+ * the circle's bottom reaches into the dirt (circleBottom > currentSurface).
  */
 export function carveInPlace(
   terrain: Int16Array,
@@ -28,11 +31,8 @@ export function carveInPlace(
     const dy2 = radius * radius - dx * dx;
     if (dy2 < 0) continue;
     const dy = Math.sqrt(dy2);
-    const circleTop = cy - dy;
     const circleBottom = cy + dy;
     const currentSurface = terrain[i] as number;
-
-    if (circleTop > currentSurface) continue;
 
     if (circleBottom > currentSurface) {
       let newY = Math.round(circleBottom);
