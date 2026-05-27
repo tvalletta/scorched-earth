@@ -7,6 +7,7 @@ import {
   LOADOUT_MAP, DEFAULT_LOADOUT_ID,
   DEFAULT_STARTING_CASH, SHOP_DURATION_MS,
   ROUND_SUMMARY_DURATION_MS,
+  SHIELD_DEFS,
   type TankColor, type TankHat,
 } from "@se/shared";
 import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
@@ -84,6 +85,58 @@ export class MatchRoom extends Room<MatchState> {
       const count = tank.inventory.get(weaponId) ?? null;
       if (count === null || count === 0) return;
       tank.weaponId = weaponId;
+    });
+
+    this.onMessage("move", (client, msg: { direction?: string; pixels?: number }) => {
+      if (this.state.phase !== "playing") return;
+      if (this.state.currentTurnPlayerId !== client.sessionId) return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank || !tank.alive) return;
+
+      const direction = msg?.direction === "right" ? 1 : -1;
+      const requested = Math.max(0, Number(msg?.pixels ?? 0));
+      const pixels = Math.min(requested, tank.fuel);
+      if (pixels <= 0) return;
+
+      const fromX = tank.x;
+      tank.x = Math.max(0, Math.min(TERRAIN_WIDTH - 1, tank.x + direction * pixels));
+      const snappedX = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(tank.x)));
+      tank.y = this.terrain[snappedX] ?? tank.y;
+      tank.fuel -= pixels;
+
+      this.broadcast("tank-moved", { sessionId: client.sessionId, fromX, toX: tank.x, fuelUsed: pixels });
+    });
+
+    this.onMessage("equip-shield", (client, msg: { shieldId?: string }) => {
+      if (this.state.phase !== "playing") return;
+      if (this.state.currentTurnPlayerId !== client.sessionId) return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank || !tank.alive) return;
+
+      const shieldId = String(msg?.shieldId ?? "");
+      const def = SHIELD_DEFS.get(shieldId);
+      if (!def) return;
+      const count = tank.inventory.get(shieldId) ?? 0;
+      if (count <= 0) return;
+
+      tank.inventory.set(shieldId, count - 1);
+      tank.shieldId = shieldId;
+      tank.shieldHp = def.maxHp;
+      tank.shieldMaxHp = def.maxHp;
+    });
+
+    this.onMessage("use-battery", (client) => {
+      if (this.state.phase !== "playing") return;
+      if (this.state.currentTurnPlayerId !== client.sessionId) return;
+      const tank = this.state.tanks.get(client.sessionId);
+      if (!tank || !tank.alive) return;
+      if (!tank.shieldId) return;
+
+      const batteries = tank.inventory.get("battery") ?? 0;
+      if (batteries <= 0) return;
+
+      tank.inventory.set("battery", batteries - 1);
+      tank.shieldHp = Math.min(tank.shieldHp + 250, tank.shieldMaxHp);
     });
 
     this.onMessage("buy", (client, msg: { weaponId?: string }) => {
@@ -416,9 +469,34 @@ export class MatchRoom extends Room<MatchState> {
 
     const first = Array.from(state.tanks.values()).find((t) => t.alive)?.sessionId ?? "";
     state.currentTurnPlayerId = first;
+    this.applyRoundStartItems();
     state.phase = "playing";
     state.tick++;
     state.turnDeadlineMs = Date.now() + state.turnTimerMs;
     this.armTurnTimer();
+  }
+
+  private applyRoundStartItems(): void {
+    for (const tank of this.state.tanks.values()) {
+      if (!tank.alive) continue;
+
+      // Auto Shield: equip if in inventory and no shield currently active
+      if (!tank.shieldId) {
+        const autoCount = tank.inventory.get("auto-shield") ?? 0;
+        if (autoCount > 0) {
+          tank.inventory.set("auto-shield", autoCount - 1);
+          tank.shieldId = "auto-shield";
+          tank.shieldHp = 400;
+          tank.shieldMaxHp = 400;
+        }
+      }
+
+      // Fuel: convert fuel-tank inventory to fuel budget, zero inventory
+      const smallTanks = tank.inventory.get("fuel-small") ?? 0;
+      const largeTanks = tank.inventory.get("fuel-large") ?? 0;
+      tank.fuel = smallTanks * 250 + largeTanks * 600;
+      if (smallTanks > 0) tank.inventory.delete("fuel-small");
+      if (largeTanks > 0) tank.inventory.delete("fuel-large");
+    }
   }
 }
