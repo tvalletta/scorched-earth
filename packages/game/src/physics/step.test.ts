@@ -389,4 +389,30 @@ describe("stepProjectiles — wall modes", () => {
     }
     expect(result.survivors).toHaveLength(0);
   });
+
+  it("none — top OOB (y < -200) emits out-of-bounds", () => {
+    const p = makeProjectile({ x: 800, y: -250, vx: 0, vy: -100 });
+    const result = stepProjectiles({ ...BASE, wallMode: "none", projectiles: [p] });
+    expect(result.events.find((e) => e.kind === "out-of-bounds")).toBeDefined();
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("absorb — projectile exiting left emits terrain-impact at x=0", () => {
+    const result = stepProjectiles({ ...BASE, wallMode: "absorb", projectiles: [flyingLeft()] });
+    const impact = result.events.find((e) => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    if (impact && impact.kind === "terrain-impact") {
+      expect(impact.x).toBe(0);
+    }
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("reflect — projectile exiting right has vx negated and x clamped to terrainWidth - 1", () => {
+    const p = flyingRight();
+    const origVx = p.vx;
+    const result = stepProjectiles({ ...BASE, wallMode: "reflect", projectiles: [p] });
+    expect(result.survivors).toHaveLength(1);
+    expect(result.survivors[0]!.vx).toBeCloseTo(-origVx);
+    expect(result.survivors[0]!.x).toBeLessThanOrEqual(WIDE - 1);
+  });
 });
