@@ -42,6 +42,10 @@ export class MatchRoom extends Room<MatchState> {
     state.gravity = 250;
     this.setState(state);
 
+    // Drive the Colyseus clock at 60 Hz so clock.setInterval callbacks
+    // (used by the tick loop) fire at the expected rate in all environments.
+    this.setSimulationInterval(() => {}, 1000 / 60);
+
     this.onMessage("configure", (client, msg: { turnTimerMs?: number; loadoutId?: string; maxRounds?: number }) => {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
