@@ -113,8 +113,17 @@ export class MatchRoom extends Room<MatchState> {
       if (pixels <= 0) return;
 
       const fromX = tank.x;
-      tank.x = Math.max(0, Math.min(TERRAIN_WIDTH - 1, tank.x + direction * pixels));
-      const snappedX = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(tank.x)));
+      const targetX = Math.max(0, Math.min(TERRAIN_WIDTH - 1, tank.x + direction * pixels));
+
+      // Slope check: |rise| / |dx| <= 1.0 (≈45°)
+      const snappedFrom = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(tank.x)));
+      const snappedTo   = Math.max(0, Math.min(TERRAIN_WIDTH - 1, Math.round(targetX)));
+      const rise = Math.abs((this.terrain[snappedTo] ?? 0) - (this.terrain[snappedFrom] ?? 0));
+      const dx = Math.abs(targetX - tank.x);
+      if (dx > 0 && rise / dx > 1.0) return; // too steep
+
+      tank.x = targetX;
+      const snappedX = snappedTo;
       tank.y = this.terrain[snappedX] ?? tank.y;
       tank.fuel -= pixels;
 
