@@ -1,6 +1,7 @@
 import { Schema, MapSchema, ArraySchema, type } from "@colyseus/schema";
 import { Tank } from "./Tank";
 import { CarveOp } from "./CarveOp";
+import { PendingEffect } from "./PendingEffect";
 
 export type MatchPhase =
   | "lobby"
@@ -40,4 +41,5 @@ export class MatchState extends Schema {
   @type("number") shopDeadlineMs = 0;
   // Phase 4 — tick-stream
   @type("number") resolvingTick = 0;
+  @type([PendingEffect]) pendingEffects = new ArraySchema<PendingEffect>();
 }

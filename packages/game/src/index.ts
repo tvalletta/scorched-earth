@@ -21,3 +21,5 @@ export { computeFallDamage } from "./physics/fall-damage";
 export type { LiveProjectile, StepTankInfo, StepEvent, StepInput, StepResult } from "./types";
 export { computeRoundEarnings, validatePurchase } from "./economy";
 export type { RoundEarnings, PurchaseResult, ShopWeaponEntry } from "./economy";
+export { processPendingEffects } from "./physics/pending-effects";
+export type { PendingEffectData, TankSnapshot, BurnDamage } from "./physics/pending-effects";

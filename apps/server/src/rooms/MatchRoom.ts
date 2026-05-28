@@ -1,6 +1,6 @@
 import { Room, type Client } from "colyseus";
 import {
-  MatchState, Tank,
+  MatchState, Tank, PendingEffect,
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
@@ -12,7 +12,7 @@ import {
   type TankColor, type TankHat,
   type TerrainType, type WallMode,
 } from "@se/shared";
-import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, type LiveProjectile } from "@se/game";
+import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, processPendingEffects, type LiveProjectile } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
@@ -207,10 +207,50 @@ export class MatchRoom extends Room<MatchState> {
       broadcast: (ev, payload) => this.broadcast(ev, payload),
       schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
       terrain: this.terrain,
-      onTurnReady: () => this.armTurnTimer(),
+      onTurnReady: () => {
+        this.runPendingEffects();
+        this.armTurnTimer();
+      },
       onRoundEnd: () => this.handleRoundEnd(),
       startTickLoop: (projectiles, firingSessionId) => this.startTickLoop(projectiles, firingSessionId),
     };
+  }
+
+  private runPendingEffects(): void {
+    const { state } = this;
+    if (state.pendingEffects.length === 0) return;
+
+    const tankSnapshots = Array.from(state.tanks.values())
+      .filter(t => t.alive)
+      .map(t => ({ sessionId: t.sessionId, x: t.x, hp: t.hp }));
+
+    const effectData = state.pendingEffects.map(e => ({
+      kind: e.kind as "burn-zone" | "smoke-zone",
+      x: e.x, width: e.width, damage: e.damage, turnsLeft: e.turnsLeft,
+    }));
+
+    const { damages, survivors } = processPendingEffects(effectData, tankSnapshots);
+
+    // Apply burn damages
+    for (const d of damages) {
+      const tank = state.tanks.get(d.sessionId);
+      if (tank?.alive) {
+        tank.hp = Math.max(0, tank.hp - d.amount);
+        if (tank.hp <= 0) tank.alive = false;
+      }
+    }
+    if (damages.length > 0) {
+      this.broadcast("burn-tick", { damages });
+    }
+
+    // Replace effect array with survivors
+    state.pendingEffects.clear();
+    for (const s of survivors) {
+      const e = new PendingEffect();
+      e.kind = s.kind; e.x = s.x; e.width = s.width;
+      e.damage = s.damage; e.turnsLeft = s.turnsLeft;
+      state.pendingEffects.push(e);
+    }
   }
 
   private startTickLoop(projectiles: LiveProjectile[], firingSessionId: string): void {
