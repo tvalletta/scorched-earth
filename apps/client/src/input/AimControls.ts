@@ -22,6 +22,10 @@ export class AimControls {
   private terrainPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
   private wallPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
 
+  private aiSection!: HTMLDivElement;
+  private aiSlotsContainer!: HTMLDivElement;
+  private aiSlotEls: Array<{ row: HTMLDivElement; sessionId: string }> = [];
+
   private angle = 90;
   private power = 500;
   private localTank: { setAngle(deg: number): void } | null = null;
@@ -308,6 +312,27 @@ export class AimControls {
 
     this.poolSection.append(terrainGroup, wallGroup);
 
+    // ── AI opponents section (host-only, lobby) ───────────────────────────
+    this.aiSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;gap:6px;");
+    const aiTitle = mkLabel("AI OPPONENTS");
+    const addAiRow = mkDiv("display:flex;gap:6px;align-items:center;");
+    const diffSelect = document.createElement("select");
+    diffSelect.style.cssText = "background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:4px;font:11px 'Courier New',monospace;padding:2px 4px;";
+    for (const diff of ["moron", "shooter", "pyro", "cyborg", "bouncer"]) {
+      const opt = document.createElement("option");
+      opt.value = diff;
+      opt.textContent = diff.charAt(0).toUpperCase() + diff.slice(1);
+      diffSelect.appendChild(opt);
+    }
+    diffSelect.value = "shooter";
+    const addAiBtn = document.createElement("button");
+    addAiBtn.textContent = "+ Add AI";
+    addAiBtn.style.cssText = "background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid #3b82f6;border-radius:4px;font:10px 'Courier New',monospace;padding:3px 8px;cursor:pointer;pointer-events:auto;";
+    addAiBtn.onclick = () => this.room.send("add-ai", { difficulty: diffSelect.value });
+    addAiRow.append(diffSelect, addAiBtn);
+    this.aiSlotsContainer = mkDiv("display:flex;flex-direction:column;gap:3px;");
+    this.aiSection.append(aiTitle, addAiRow, this.aiSlotsContainer);
+
     // ── Drive HUD ──────────────────────────────────────────────────────────
     this.driveHUD = mkDiv(
       "pointer-events:auto;display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);" +
@@ -330,7 +355,7 @@ export class AimControls {
     this.driveHUD.append(driveTitle, this.fuelLabel, fuelTrack);
     document.getElementById("ui")!.appendChild(this.driveHUD);
 
-    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.poolSection, this.inviteSection, this.loadoutDisplay);
+    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.poolSection, this.aiSection, this.inviteSection, this.loadoutDisplay);
   }
 
   private refreshChrome() {
@@ -374,12 +399,15 @@ export class AimControls {
         }
         this.poolSection.style.display = "flex";
       }
+      this.aiSection.style.display = "flex";
+      this.refreshAiSlots();
     } else {
       this.loadoutSection.style.display = "none";
       this.maxRoundsSection.style.display = "none";
       this.inviteSection.style.display = "none";
       this.loadoutDisplay.style.display = "none";
       this.poolSection.style.display = "none";
+      this.aiSection.style.display = "none";
       if (state.phase === "playing") {
         const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
         this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
@@ -395,6 +423,42 @@ export class AimControls {
       btn.style.background = active ? "rgba(37,99,235,0.6)" : "rgba(0,0,0,0.3)";
       btn.style.color = active ? "#93c5fd" : "#94a3b8";
       btn.style.borderColor = active ? "#3b82f6" : "rgba(255,255,255,0.2)";
+    }
+  }
+
+  private refreshAiSlots(): void {
+    const state = this.room.state;
+    const isHost = state.hostId === this.room.sessionId;
+    const slots = Array.from(state.aiSlots);
+    // Remove old rows
+    while (this.aiSlotsContainer.firstChild) {
+      this.aiSlotsContainer.removeChild(this.aiSlotsContainer.firstChild);
+    }
+    this.aiSlotEls = [];
+    for (const slot of slots) {
+      const row = mkDiv("display:flex;align-items:center;gap:4px;");
+      const label = mkDiv("color:#f59e0b;font:10px 'Courier New',monospace;flex:1;");
+      label.textContent = "🤖 " + slot.sessionId + " — " + slot.difficulty;
+      row.appendChild(label);
+      if (isHost) {
+        const sel = document.createElement("select");
+        sel.style.cssText = "background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:3px;font:9px 'Courier New',monospace;padding:1px 3px;";
+        for (const diff of ["moron", "shooter", "pyro", "cyborg", "bouncer"]) {
+          const opt = document.createElement("option");
+          opt.value = diff;
+          opt.textContent = diff;
+          sel.appendChild(opt);
+        }
+        sel.value = slot.difficulty;
+        sel.onchange = () => this.room.send("set-ai-difficulty", { sessionId: slot.sessionId, difficulty: sel.value });
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "✕";
+        removeBtn.style.cssText = "background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;border-radius:3px;font:9px monospace;padding:1px 5px;cursor:pointer;pointer-events:auto;";
+        removeBtn.onclick = () => this.room.send("remove-ai", { sessionId: slot.sessionId });
+        row.append(sel, removeBtn);
+      }
+      this.aiSlotsContainer.appendChild(row);
+      this.aiSlotEls.push({ row, sessionId: slot.sessionId });
     }
   }
 
