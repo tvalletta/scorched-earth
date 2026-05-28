@@ -168,6 +168,17 @@ export class MatchRoom extends Room<MatchState> {
       if (!tank || !tank.alive) return;
 
       const weaponId = String(msg?.weaponId ?? "");
+
+      // Special: Wimpy Pack — grants 30 baby-missiles instead of adding to inventory
+      if (weaponId === "wimpy-pack") {
+        if (tank.cash < 5_000) return;
+        tank.cash -= 5_000;
+        const current = tank.inventory.get("baby-missile") ?? 0;
+        if (current >= 0) { // -1 = infinite — don't add on top of infinite
+          tank.inventory.set("baby-missile", current + 30);
+        }
+        return;
+      }
       const registry = [
         ...Array.from(WEAPON_REGISTRY.values()).map((w) => ({ id: w.id, price: w.price, packSize: w.packSize })),
         ...Array.from(ITEM_REGISTRY.values()).map((i) => ({ id: i.id, price: i.price, packSize: i.packSize })),

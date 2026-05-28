@@ -8,11 +8,13 @@ import { MIRV } from "./mirv";
 import { DEATHS_HEAD, DEATHS_KNELL, TRIPLE_WARHEAD, PINEAPPLE, FUNKY_NUKE, PLASMA_BALL, PLASMA_BLAST } from "./group1-variants";
 import { LEAPFROG, ROLLER, HEAVY_ROLLER, LASER, PLASMA_WAVE, TRACER, SMOKE } from "./group2-physics";
 import { DIRT_CLOD, DIRT_BALL, LIQUID_DIRT, SANDHOG, TUNNELER } from "./group3-terrain";
+import { NAPALM, HOT_NAPALM, FIREBALL } from "./group4-burn";
 
 export { BABY_MISSILE, MISSILE, BABY_NUKE, NUKE, FUNKY_BOMB, MIRV };
 export { DEATHS_HEAD, DEATHS_KNELL, TRIPLE_WARHEAD, PINEAPPLE, FUNKY_NUKE, PLASMA_BALL, PLASMA_BLAST };
 export { LEAPFROG, ROLLER, HEAVY_ROLLER, LASER, PLASMA_WAVE, TRACER, SMOKE };
 export { DIRT_CLOD, DIRT_BALL, LIQUID_DIRT, SANDHOG, TUNNELER };
+export { NAPALM, HOT_NAPALM, FIREBALL };
 
 // Player-selectable weapons in display order. Sub-munition defs are NOT registered.
 export const WEAPON_REGISTRY = new Map<string, WeaponDef>([
@@ -41,4 +43,7 @@ export const WEAPON_REGISTRY = new Map<string, WeaponDef>([
   [LIQUID_DIRT.id, LIQUID_DIRT],
   [SANDHOG.id, SANDHOG],
   [TUNNELER.id, TUNNELER],
+  [NAPALM.id, NAPALM],
+  [HOT_NAPALM.id, HOT_NAPALM],
+  [FIREBALL.id, FIREBALL],
 ]);
