@@ -3,36 +3,32 @@ export interface ShieldDef {
   label: string;
   maxHp: number;
   radius: number;
-  type: "absorb" | "deflect" | "bend" | "explode";
-  hpCostFraction: number;
+  type: "absorb" | "bend";
   price: number;
   packSize: number;
+  reflectFraction?: number; // Force Shield only
 }
 
 export const SHIELD_DEFS = new Map<string, ShieldDef>([
-  ["force-field", {
-    id: "force-field", label: "Force Field",
-    maxHp: 200, radius: 60, type: "absorb", hpCostFraction: 0.5,
-    price: 1500, packSize: 1,
+  ["shield", {
+    id: "shield", label: "Shield",
+    maxHp: 50, radius: 55, type: "absorb",
+    price: 5_000, packSize: 1,
   }],
-  ["deflector-shield", {
-    id: "deflector-shield", label: "Deflector Shield",
-    maxHp: 500, radius: 70, type: "deflect", hpCostFraction: 0.25,
-    price: 3000, packSize: 1,
+  ["heavy-shield", {
+    id: "heavy-shield", label: "Heavy Shield",
+    maxHp: 150, radius: 60, type: "absorb",
+    price: 12_000, packSize: 1,
   }],
-  ["magnetic-shield", {
-    id: "magnetic-shield", label: "Magnetic Shield",
-    maxHp: 600, radius: 100, type: "bend", hpCostFraction: 0,
-    price: 3500, packSize: 1,
+  ["super-magnetic", {
+    id: "super-magnetic", label: "Super Magnetic Shield",
+    maxHp: 250, radius: 80, type: "bend",
+    price: 25_000, packSize: 1,
   }],
-  ["reactive-armor", {
-    id: "reactive-armor", label: "Reactive Armor",
-    maxHp: 1, radius: 50, type: "explode", hpCostFraction: 1,
-    price: 2000, packSize: 3,
-  }],
-  ["auto-shield", {
-    id: "auto-shield", label: "Auto Shield",
-    maxHp: 400, radius: 60, type: "absorb", hpCostFraction: 0.5,
-    price: 2500, packSize: 2,
+  ["force-shield", {
+    id: "force-shield", label: "Force Shield",
+    maxHp: 500, radius: 65, type: "absorb",
+    price: 50_000, packSize: 1,
+    reflectFraction: 0.25,
   }],
 ]);

@@ -26,7 +26,6 @@ export function buildStepTanks(state: MatchState): StepTankInfo[] {
         shieldMaxHp: t.shieldMaxHp,
         shieldRadius: def?.radius ?? 0,
         shieldType: (def?.type ?? "") as StepTankInfo["shieldType"],
-        hpCostFraction: def?.hpCostFraction ?? 0,
       };
     });
 }
@@ -71,10 +70,31 @@ export function applyStepEvent(
   if (event.kind === "shield-absorb") {
     const tank = state.tanks.get(event.targetId);
     if (tank) {
+      // Capture shieldId before possibly clearing it
+      const shieldId = tank.shieldId;
       tank.shieldHp = event.hpAfter;
       if (tank.shieldHp <= 0) tank.shieldId = "";
+
+      // Overflow hull damage
+      if (event.overflow > 0) {
+        tank.hp = Math.max(0, tank.hp - event.overflow);
+        if (tank.hp <= 0) tank.alive = false;
+      }
+
+      // Force Shield: reflect 25% of absorbed damage back to attacker
+      const def = SHIELD_DEFS.get(shieldId);
+      if (def?.reflectFraction && event.absorbed > 0) {
+        const attacker = state.tanks.get(event.ownerId);
+        if (attacker?.alive) {
+          attacker.hp = Math.max(0, attacker.hp - Math.floor(event.absorbed * def.reflectFraction));
+          if (attacker.hp <= 0) attacker.alive = false;
+        }
+      }
     }
-    broadcast("shield-hit", { targetId: event.targetId, type: "absorb", hpBefore: event.hpBefore, hpAfter: event.hpAfter });
+    broadcast("shield-hit", {
+      targetId: event.targetId, type: "absorb",
+      hpBefore: event.hpBefore, hpAfter: event.hpAfter,
+    });
     return;
   }
 

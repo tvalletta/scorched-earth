@@ -94,8 +94,7 @@ export interface StepTankInfo {
   shieldHp: number;
   shieldMaxHp: number;
   shieldRadius: number;
-  shieldType: "absorb" | "deflect" | "bend" | "explode" | "";
-  hpCostFraction: number;
+  shieldType: "absorb" | "bend" | "";
 }
 
 export interface StepInput {
@@ -112,7 +111,9 @@ export interface StepInput {
 
 export type StepEvent =
   | { kind: "terrain-impact"; projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string }
-  | { kind: "shield-absorb";  projectileId: string; targetId: string; hpBefore: number; hpAfter: number }
+  | { kind: "shield-absorb"; projectileId: string; targetId: string;
+      hpBefore: number; hpAfter: number; absorbed: number; overflow: number;
+      ownerId: string }
   | { kind: "shield-deflect"; projectileId: string; targetId: string; newVx: number; newVy: number; hpBefore: number; hpAfter: number }
   | { kind: "shield-bend";    projectileId: string; targetId: string; impulseX: number; impulseY: number }
   | { kind: "shield-explode"; projectileId: string; targetId: string; x: number; y: number }

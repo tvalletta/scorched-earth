@@ -504,17 +504,6 @@ export class MatchRoom extends Room<MatchState> {
     for (const tank of this.state.tanks.values()) {
       if (!tank.alive) continue;
 
-      // Auto Shield: equip if in inventory and no shield currently active
-      if (!tank.shieldId) {
-        const autoCount = tank.inventory.get("auto-shield") ?? 0;
-        if (autoCount > 0) {
-          tank.inventory.set("auto-shield", autoCount - 1);
-          tank.shieldId = "auto-shield";
-          tank.shieldHp = 400;
-          tank.shieldMaxHp = 400;
-        }
-      }
-
       // Fuel: convert fuel-tank inventory to fuel budget, zero inventory
       const smallTanks = tank.inventory.get("fuel-small") ?? 0;
       const largeTanks = tank.inventory.get("fuel-large") ?? 0;

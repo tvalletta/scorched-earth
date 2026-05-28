@@ -1,20 +1,19 @@
 import { Container, Graphics } from "pixi.js";
 
-type ShieldStyle = "absorb" | "deflect" | "bend" | "explode";
+type ShieldStyle = "absorb" | "bend";
 
-const SHIELD_COLORS: Record<ShieldStyle, number> = {
-  absorb: 0x4ecdc4,
-  deflect: 0xffd93d,
-  bend: 0xc77dff,
-  explode: 0xff9f1c,
+const SHIELD_COLORS: Record<string, number> = {
+  "shield":          0x4ecdc4,
+  "heavy-shield":    0x4ecdc4,
+  "super-magnetic":  0xc77dff,
+  "force-shield":    0xffd93d,
 };
 
 const SHIELD_RADII: Record<string, number> = {
-  "force-field": 60,
-  "auto-shield": 60,
-  "deflector-shield": 70,
-  "magnetic-shield": 100,
-  "reactive-armor": 50,
+  "shield":         55,
+  "heavy-shield":   60,
+  "super-magnetic": 80,
+  "force-shield":   65,
 };
 
 export class ShieldBubble extends Container {
@@ -32,7 +31,7 @@ export class ShieldBubble extends Container {
     if (!shieldId || shieldHp <= 0) return;
 
     const style = this.styleFor(shieldId);
-    const color = SHIELD_COLORS[style];
+    const color = SHIELD_COLORS[shieldId] ?? 0x4ecdc4;
     const radius = SHIELD_RADII[shieldId] ?? 60;
     const hpFraction = shieldMaxHp > 0 ? shieldHp / shieldMaxHp : 0;
     const baseAlpha = 0.1 + hpFraction * 0.15;
@@ -61,9 +60,7 @@ export class ShieldBubble extends Container {
   }
 
   private styleFor(shieldId: string): ShieldStyle {
-    if (shieldId === "deflector-shield") return "deflect";
-    if (shieldId === "magnetic-shield") return "bend";
-    if (shieldId === "reactive-armor") return "explode";
+    if (shieldId === "super-magnetic") return "bend";
     return "absorb";
   }
 }

@@ -136,27 +136,17 @@ export function stepProjectiles(input: StepInput): StepResult {
       const ny = dy / dist;
 
       if (tank.shieldType === "absorb") {
-        const hpCost = Math.floor(p.weapon.damage * tank.hpCostFraction);
         const hpBefore = tank.shieldHp;
-        const hpAfter = Math.max(0, hpBefore - hpCost);
-        events.push({ kind: "shield-absorb", projectileId: p.id, targetId: tank.sessionId, hpBefore, hpAfter });
+        const absorbed = Math.min(p.weapon.damage, hpBefore);
+        const hpAfter = hpBefore - absorbed;
+        const overflow = p.weapon.damage - absorbed;
+        events.push({
+          kind: "shield-absorb",
+          projectileId: p.id, targetId: tank.sessionId,
+          hpBefore, hpAfter, absorbed, overflow, ownerId: p.ownerId,
+        });
         tank.shieldHp = hpAfter;
         shielded = true;
-        break;
-      }
-
-      if (tank.shieldType === "deflect") {
-        const hpCost = Math.floor(p.weapon.damage * tank.hpCostFraction);
-        const hpBefore = tank.shieldHp;
-        const hpAfter = Math.max(0, hpBefore - hpCost);
-        const dot = p.vx * nx + p.vy * ny;
-        const newVx = p.vx - 2 * dot * nx;
-        const newVy = p.vy - 2 * dot * ny;
-        p.vx = newVx;
-        p.vy = newVy;
-        tank.shieldHp = hpAfter;
-        events.push({ kind: "shield-deflect", projectileId: p.id, targetId: tank.sessionId, newVx, newVy, hpBefore, hpAfter });
-        // deflected projectile stays alive — no shielded=true
         break;
       }
 
@@ -177,12 +167,6 @@ export function stepProjectiles(input: StepInput): StepResult {
         break;
       }
 
-      if (tank.shieldType === "explode") {
-        events.push({ kind: "shield-explode", projectileId: p.id, targetId: tank.sessionId, x: p.x, y: p.y });
-        tank.shieldHp = 0;
-        shielded = true;
-        break;
-      }
     }
 
     if (shielded) continue;

@@ -104,7 +104,6 @@ function absorbTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
     shieldHp: 200, shieldMaxHp: 200,
     shieldRadius: 60,
     shieldType: "absorb",
-    hpCostFraction: 0.5,
     ...overrides,
   };
 }
@@ -119,7 +118,37 @@ describe("stepProjectiles — absorb shield", () => {
     expect(result.survivors).toHaveLength(0);
     if (ev?.kind === "shield-absorb") {
       expect(ev.targetId).toBe("defender");
-      expect(ev.hpAfter).toBe(200 - Math.floor(BABY_MISSILE.damage * 0.5));
+      // absorbed = min(damage, shieldHp) = min(BABY_MISSILE.damage, 200)
+      const expectedAbsorbed = Math.min(BABY_MISSILE.damage, 200);
+      expect(ev.absorbed).toBe(expectedAbsorbed);
+      expect(ev.hpAfter).toBe(200 - expectedAbsorbed);
+      expect(ev.overflow).toBe(BABY_MISSILE.damage - expectedAbsorbed);
+      expect(ev.ownerId).toBe("attacker");
+    }
+  });
+
+  it("overflow equals zero when shield has enough HP", () => {
+    // Shield HP 200, BABY_MISSILE.damage should be <= 200
+    const tank = absorbTank({ shieldHp: 200 });
+    const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const ev = result.events.find(e => e.kind === "shield-absorb");
+    if (ev?.kind === "shield-absorb") {
+      if (BABY_MISSILE.damage <= 200) {
+        expect(ev.overflow).toBe(0);
+      }
+    }
+  });
+
+  it("overflow equals damage minus shieldHp when shield is too weak", () => {
+    const tank = absorbTank({ shieldHp: 5 }); // small shield
+    const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
+    const ev = result.events.find(e => e.kind === "shield-absorb");
+    if (ev?.kind === "shield-absorb") {
+      expect(ev.absorbed).toBe(5);
+      expect(ev.hpAfter).toBe(0);
+      expect(ev.overflow).toBe(BABY_MISSILE.damage - 5);
     }
   });
 
@@ -145,57 +174,7 @@ describe("stepProjectiles — absorb shield", () => {
   });
 });
 
-describe("stepProjectiles — deflector shield", () => {
-  function deflectTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
-    return {
-      sessionId: "defender",
-      x: 800, y: 490,
-      shieldHp: 500, shieldMaxHp: 500,
-      shieldRadius: 70,
-      shieldType: "deflect",
-      hpCostFraction: 0.25,
-      ...overrides,
-    };
-  }
-
-  it("emits shield-deflect and projectile survives (remains in survivors)", () => {
-    const tank = deflectTank();
-    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    expect(result.events.find(e => e.kind === "shield-deflect")).toBeDefined();
-    expect(result.survivors).toHaveLength(1);
-  });
-
-  it("reflected projectile has reversed vy component (hits from above → bounces up)", () => {
-    const tank = deflectTank({ x: 800, y: 500 });
-    // Projectile coming straight down toward tank center — nx≈0, ny≈-1 after entering radius
-    const p = makeProjectile({ x: 800, y: 440, vx: 0, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    const deflected = result.survivors[0];
-    expect(deflected).toBeDefined();
-    expect(deflected!.vy).toBeLessThan(0); // reflected upward
-  });
-
-  it("reduces shield HP by hpCostFraction * damage", () => {
-    const tank = deflectTank();
-    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    const ev = result.events.find(e => e.kind === "shield-deflect");
-    if (ev?.kind === "shield-deflect") {
-      const expectedCost = Math.floor(BABY_MISSILE.damage * 0.25);
-      expect(ev.hpAfter).toBe(500 - expectedCost);
-    }
-  });
-
-  it("does NOT deflect own projectile", () => {
-    const tank = deflectTank({ sessionId: "player1" });
-    const p = makeProjectile({ x: 800, y: 430, vy: 3000, ownerId: "player1" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    expect(result.events.find(e => e.kind === "shield-deflect")).toBeUndefined();
-  });
-});
-
-describe("stepProjectiles — magnetic shield", () => {
+describe("stepProjectiles — magnetic shield (bend)", () => {
   function magneticTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
     return {
       sessionId: "defender",
@@ -203,7 +182,6 @@ describe("stepProjectiles — magnetic shield", () => {
       shieldHp: 600, shieldMaxHp: 600,
       shieldRadius: 100,
       shieldType: "bend",
-      hpCostFraction: 0,
       ...overrides,
     };
   }
@@ -243,53 +221,6 @@ describe("stepProjectiles — magnetic shield", () => {
     const p = makeProjectile({ x: 800, y: 400, vy: 3000, ownerId: "player1" });
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
     expect(result.events.find(e => e.kind === "shield-bend")).toBeUndefined();
-  });
-});
-
-describe("stepProjectiles — reactive armor", () => {
-  function reactiveTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
-    return {
-      sessionId: "defender",
-      x: 800, y: 490,
-      shieldHp: 1, shieldMaxHp: 1,
-      shieldRadius: 50,
-      shieldType: "explode",
-      hpCostFraction: 1,
-      ...overrides,
-    };
-  }
-
-  it("removes projectile and emits shield-explode when charged (shieldHp=1)", () => {
-    const tank = reactiveTank();
-    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    expect(result.survivors).toHaveLength(0);
-    expect(result.events.find(e => e.kind === "shield-explode")).toBeDefined();
-  });
-
-  it("explode event contains contact point", () => {
-    const tank = reactiveTank();
-    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    const ev = result.events.find(e => e.kind === "shield-explode");
-    if (ev?.kind === "shield-explode") {
-      expect(ev.targetId).toBe("defender");
-      expect(typeof ev.x).toBe("number");
-    }
-  });
-
-  it("does NOT trigger when depleted (shieldHp=0)", () => {
-    const tank = reactiveTank({ shieldHp: 0 });
-    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "attacker" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    expect(result.events.find(e => e.kind === "shield-explode")).toBeUndefined();
-  });
-
-  it("does NOT trigger against owner's projectile", () => {
-    const tank = reactiveTank({ sessionId: "player1" });
-    const p = makeProjectile({ x: 800, y: 450, vy: 3000, ownerId: "player1" });
-    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
-    expect(result.events.find(e => e.kind === "shield-explode")).toBeUndefined();
   });
 });
 
