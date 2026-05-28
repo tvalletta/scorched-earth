@@ -4,7 +4,6 @@ import { WEAPON_REGISTRY } from "../weapons/index";
 import { think } from "./think";
 
 const W = 1600;
-const H = 900;
 const FLAT = new Int16Array(W).fill(700);
 
 function makeState(mySessionId: string, enemySessionId: string, difficulty = "shooter") {
