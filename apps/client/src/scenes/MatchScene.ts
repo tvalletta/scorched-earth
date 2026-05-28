@@ -44,6 +44,7 @@ export class MatchScene {
   private weaponBar!: WeaponBar;
   private roundInfo!: RoundInfo;
   private trajectoryOverlay!: TrajectoryOverlay;
+  private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -90,6 +91,23 @@ export class MatchScene {
       }
     });
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
+    room.onMessage("burn-zone-start", (msg: { x: number; width: number; turnsLeft: number }) => {
+      this.activeZones.push({ kind: "burn-zone", x: msg.x, width: msg.width });
+      this.terrain?.updateZones(this.activeZones);
+      this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+    });
+    room.onMessage("smoke-zone-start", (msg: { x: number; width: number; turnsLeft: number }) => {
+      this.activeZones.push({ kind: "smoke-zone", x: msg.x, width: msg.width });
+      this.terrain?.updateZones(this.activeZones);
+      this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+    });
+    room.onMessage("burn-tick", (_msg: { damages: Array<{ sessionId: string; amount: number }> }) => {
+      // Sync zones from authoritative server state to pick up any expirations
+      this.activeZones = Array.from(this.room.state.pendingEffects.values())
+        .map(e => ({ kind: e.kind as "burn-zone" | "smoke-zone", x: e.x, width: e.width }));
+      this.terrain?.updateZones(this.activeZones);
+      this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+    });
     room.onMessage("round-summary", (msg) => {
       this.lastRoundSummaryPayload = msg;
     });
@@ -234,6 +252,12 @@ export class MatchScene {
   private onPhaseChange(phase: MatchPhase): void {
     if (phase !== "playing") this.trajectoryOverlay?.clear();
     if (phase === "lobby") this.roundInfo?.hide();
+    if (phase === "playing") {
+      // Clear zones at the start of each round
+      this.activeZones = [];
+      this.terrain?.updateZones([]);
+      this.trajectoryOverlay?.setSmokeZones([]);
+    }
 
     // Dispose previous overlay when leaving a phase
     if (this.lastPhase === "round-summary" && phase !== "round-summary") {
@@ -294,7 +318,7 @@ export class MatchScene {
       targets: [],
     });
 
-    this.trajectoryOverlay.draw(result.samples);
+    this.trajectoryOverlay.draw(result.samples, tank.x);
   }
 
   private showMatchEnd(msg: unknown): void {

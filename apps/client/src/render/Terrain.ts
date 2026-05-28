@@ -7,6 +7,7 @@ import { DirtParticles } from "./DirtParticles";
 export class TerrainRenderer extends Container {
   private heightmap: Int16Array;
   private graphics: Graphics;
+  private zoneOverlay: Graphics;
 
   constructor(seed: string, type: TerrainType = "random") {
     super();
@@ -18,6 +19,8 @@ export class TerrainRenderer extends Container {
     });
     this.graphics = new Graphics();
     this.addChild(this.graphics);
+    this.zoneOverlay = new Graphics();
+    this.addChild(this.zoneOverlay); // renders on top of terrain
     this.redraw();
   }
 
@@ -51,6 +54,24 @@ export class TerrainRenderer extends Container {
 
   getHeightmap(): Int16Array {
     return this.heightmap;
+  }
+
+  updateZones(zones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }>): void {
+    this.zoneOverlay.clear();
+    for (const zone of zones) {
+      const left = zone.x - zone.width / 2;
+      if (zone.kind === "burn-zone") {
+        // Orange flame overlay
+        this.zoneOverlay
+          .rect(left, 0, zone.width, TERRAIN_HEIGHT)
+          .fill({ color: 0xff6600, alpha: 0.4 });
+      } else {
+        // Gray smoke overlay
+        this.zoneOverlay
+          .rect(left, 0, zone.width, TERRAIN_HEIGHT)
+          .fill({ color: 0x888888, alpha: 0.35 });
+      }
+    }
   }
 
   private redraw() {
