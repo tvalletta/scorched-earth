@@ -6,9 +6,11 @@ import { NUKE } from "./nuke";
 import { FUNKY_BOMB } from "./funky-bomb";
 import { MIRV } from "./mirv";
 import { DEATHS_HEAD, DEATHS_KNELL, TRIPLE_WARHEAD, PINEAPPLE, FUNKY_NUKE, PLASMA_BALL, PLASMA_BLAST } from "./group1-variants";
+import { LEAPFROG, ROLLER, HEAVY_ROLLER, LASER, PLASMA_WAVE, TRACER, SMOKE } from "./group2-physics";
 
 export { BABY_MISSILE, MISSILE, BABY_NUKE, NUKE, FUNKY_BOMB, MIRV };
 export { DEATHS_HEAD, DEATHS_KNELL, TRIPLE_WARHEAD, PINEAPPLE, FUNKY_NUKE, PLASMA_BALL, PLASMA_BLAST };
+export { LEAPFROG, ROLLER, HEAVY_ROLLER, LASER, PLASMA_WAVE, TRACER, SMOKE };
 
 // Player-selectable weapons in display order. Sub-munition defs are NOT registered.
 export const WEAPON_REGISTRY = new Map<string, WeaponDef>([
@@ -25,4 +27,11 @@ export const WEAPON_REGISTRY = new Map<string, WeaponDef>([
   [FUNKY_NUKE.id, FUNKY_NUKE],
   [PLASMA_BALL.id, PLASMA_BALL],
   [PLASMA_BLAST.id, PLASMA_BLAST],
+  [LEAPFROG.id, LEAPFROG],
+  [ROLLER.id, ROLLER],
+  [HEAVY_ROLLER.id, HEAVY_ROLLER],
+  [LASER.id, LASER],
+  [PLASMA_WAVE.id, PLASMA_WAVE],
+  [TRACER.id, TRACER],
+  [SMOKE.id, SMOKE],
 ]);
