@@ -165,17 +165,22 @@ export function stepProjectiles(input: StepInput): StepResult {
       const ny = dy / dist;
 
       if (tank.shieldType === "absorb") {
+        const pierce = p.weapon.shieldPierce ?? 0;
+        const effectiveDamage = p.weapon.damage * (1 - pierce);
+        const piercedHull = p.weapon.damage * pierce;
         const hpBefore = tank.shieldHp;
-        const absorbed = Math.min(p.weapon.damage, hpBefore);
+        const absorbed = Math.min(effectiveDamage, hpBefore);
         const hpAfter = hpBefore - absorbed;
-        const overflow = p.weapon.damage - absorbed;
+        const absorbOverflow = effectiveDamage - absorbed;
         events.push({
           kind: "shield-absorb",
           projectileId: p.id, targetId: tank.sessionId,
-          hpBefore, hpAfter, absorbed, overflow, ownerId: p.ownerId,
+          hpBefore, hpAfter, absorbed,
+          overflow: absorbOverflow + piercedHull, // total hull damage
+          ownerId: p.ownerId,
         });
         tank.shieldHp = hpAfter;
-        shielded = true;
+        shielded = true; // projectile is still "blocked" — no pass-through
         break;
       }
 
