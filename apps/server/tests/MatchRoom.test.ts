@@ -293,4 +293,35 @@ describe("MatchRoom — AI slots", () => {
     expect(a.state.aiSlots.length).toBe(9);
     await a.leave();
   });
+
+  it("AI tank appears in state.tanks when match starts", async () => {
+    const a = await joinMatch({ code: "AI-06", nickname: "Host", color: "red" });
+    const b = await joinMatch({ code: "AI-06", nickname: "Bob", color: "blue" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "shooter" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise(r => setTimeout(r, 150));
+    expect(a.state.phase).toBe("playing");
+    expect(a.state.tanks.size).toBe(3); // 2 humans + 1 AI
+    const aiTank = a.state.tanks.get("ai-0");
+    expect(aiTank).toBeDefined();
+    expect(aiTank!.alive).toBe(true);
+    expect(aiTank!.nickname).toBeTruthy();
+    await a.leave(); await b.leave();
+  });
+
+  it("AI tank has a deterministic nickname drawn from the pool", async () => {
+    const a = await joinMatch({ code: "AI-07", nickname: "Host", color: "red" });
+    const b = await joinMatch({ code: "AI-07", nickname: "Bob", color: "blue" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "cyborg" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise(r => setTimeout(r, 150));
+    const aiTank = a.state.tanks.get("ai-0");
+    const cyborgNames = ["HAL-9000", "Nexus", "ARIA", "Unit-7", "Axiom"];
+    expect(cyborgNames.some(n => aiTank!.nickname.startsWith(n.split("-")[0]!))).toBe(true);
+    await a.leave(); await b.leave();
+  });
 });

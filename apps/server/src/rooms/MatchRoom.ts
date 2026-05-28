@@ -11,11 +11,12 @@ import {
   parsePool, ALL_TERRAIN_TYPES, ALL_WALL_MODES,
   ALL_AI_DIFFICULTIES,
   type TankColor, type TankHat,
-  type TerrainType, type WallMode,
+  type TerrainType, type WallMode, type AiDifficulty,
 } from "@se/shared";
 import {
   generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
   stepProjectiles, processPendingEffects, type LiveProjectile,
+  AI_NAME_POOLS,
 } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 import {
@@ -453,6 +454,32 @@ export class MatchRoom extends Room<MatchState> {
     }
   }
 
+  private createAiTanks(): void {
+    const usedNames = new Set(
+      Array.from(this.state.tanks.values()).map(t => t.nickname)
+    );
+    for (let i = 0; i < this.state.aiSlots.length; i++) {
+      const slot = this.state.aiSlots[i]!;
+      // Assign deterministic nickname from pool
+      const pool = AI_NAME_POOLS[slot.difficulty as AiDifficulty] ?? ["AI"];
+      const namePrng = createPrng(this.matchSeed + "_ai_name_" + i);
+      let nickname = namePrng.pick(pool);
+      if (usedNames.has(nickname)) nickname = nickname + "-" + (i + 1);
+      usedNames.add(nickname);
+      slot.nickname = nickname;
+
+      const tank = new Tank();
+      tank.playerId = slot.sessionId;
+      tank.sessionId = slot.sessionId;
+      tank.nickname = nickname;
+      tank.color = "white"; // default; host cannot set color for AI
+      tank.connected = true;
+      tank.alive = true;
+      tank.hp = 100;
+      this.state.tanks.set(slot.sessionId, tank);
+    }
+  }
+
   private initCash(): void {
     for (const tank of this.state.tanks.values()) {
       tank.cash = DEFAULT_STARTING_CASH;
@@ -485,6 +512,7 @@ export class MatchRoom extends Room<MatchState> {
       height: TERRAIN_HEIGHT,
     });
     this.terrain = terrain;
+    this.createAiTanks();
     this.placeTanksOn(terrain);
     this.seedInventory();
     this.initCash();
