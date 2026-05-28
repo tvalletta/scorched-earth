@@ -17,7 +17,7 @@ import {
   generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
   stepProjectiles, processPendingEffects, type LiveProjectile,
   AI_NAME_POOLS,
-  think, AI_PROFILES,
+  think, AI_PROFILES, shopForAi,
   type ThinkStateSnapshot,
 } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
@@ -623,9 +623,37 @@ export class MatchRoom extends Room<MatchState> {
     state.phase = "shopping";
     state.shopDeadlineMs = Date.now() + SHOP_DURATION_MS;
     for (const tank of state.tanks.values()) {
-      // Dead players can't see the shop, so auto-mark them ready
       tank.readyForShop = !tank.alive;
     }
+
+    // AI tanks shop immediately and mark themselves ready
+    const registry = [
+      ...Array.from(WEAPON_REGISTRY.values()).map(w => ({ id: w.id, price: w.price, packSize: w.packSize })),
+      ...Array.from(ITEM_REGISTRY.values()).map(i => ({ id: i.id, price: i.price, packSize: i.packSize })),
+    ];
+
+    for (const slot of state.aiSlots) {
+      const tank = state.tanks.get(slot.sessionId);
+      if (!tank || !tank.alive) continue;
+      const prng = createPrng(this.matchSeed + "_ai_shop_r" + state.round + "_" + slot.sessionId);
+      const purchases = shopForAi({
+        cash: tank.cash,
+        shieldId: tank.shieldId,
+        difficulty: slot.difficulty as AiDifficulty,
+        prng,
+      });
+      for (const p of purchases) {
+        const result = validatePurchase(p.itemId, tank.cash, new Map(tank.inventory.entries()), registry);
+        if (result.ok) {
+          tank.cash = result.newCash;
+          for (const [id, count] of result.newInventory.entries()) {
+            tank.inventory.set(id, count);
+          }
+        }
+      }
+      tank.readyForShop = true;
+    }
+
     this.shopTimerHandle = this.clock.setTimeout(() => {
       this.shopTimerHandle = null;
       this.advanceAfterShop();

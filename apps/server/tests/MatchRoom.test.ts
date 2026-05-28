@@ -358,4 +358,30 @@ describe("MatchRoom — AI slots", () => {
     expect(a.state.tick).toBeGreaterThan(0);
     await a.leave();
   });
+
+  it("AI tank is marked readyForShop immediately when shopping starts", async () => {
+    const a = await joinMatch({ code: "AI-10", nickname: "Host", color: "red" });
+    const b = await joinMatch({ code: "AI-10", nickname: "Bob", color: "blue" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "shooter" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise(r => setTimeout(r, 150));
+
+    // Play until a round ends and shopping starts
+    // Fast approach: fire immediately on first human turn to end the round quickly
+    if (a.state.currentTurnPlayerId === a.sessionId) {
+      a.send("fire", { angle: 90, power: 900 });
+    } else if (a.state.currentTurnPlayerId === b.sessionId) {
+      b.send("fire", { angle: 90, power: 900 });
+    }
+    // Wait for round to resolve and shopping to open
+    await new Promise(r => setTimeout(r, 3000));
+
+    if (a.state.phase === "shopping") {
+      const aiTank = a.state.tanks.get("ai-0");
+      expect(aiTank?.readyForShop).toBe(true);
+    }
+    await a.leave(); await b.leave();
+  });
 });
