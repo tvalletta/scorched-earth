@@ -17,6 +17,8 @@ import {
   generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
   stepProjectiles, processPendingEffects, type LiveProjectile,
   AI_NAME_POOLS,
+  think, AI_PROFILES,
+  type ThinkStateSnapshot,
 } from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 import {
@@ -378,6 +380,77 @@ export class MatchRoom extends Room<MatchState> {
       if (!tank || !tank.alive) return;
       handleFire(this.resolveCtx(), currentId, tank.angle, tank.power);
     }, this.state.turnTimerMs);
+
+    if (this.isAiTurn()) {
+      this.scheduleAiTurn();
+    }
+  }
+
+  private isAiTurn(): boolean {
+    return this.state.aiSlots.some(
+      s => s.sessionId === this.state.currentTurnPlayerId,
+    );
+  }
+
+  private scheduleAiTurn(): void {
+    const slot = this.state.aiSlots.find(
+      s => s.sessionId === this.state.currentTurnPlayerId,
+    );
+    if (!slot) return;
+    const profile = AI_PROFILES[slot.difficulty as AiDifficulty];
+    this.clock.setTimeout(() => {
+      if (this.state.phase !== "playing") return;
+      if (this.state.currentTurnPlayerId !== slot.sessionId) return;
+
+      const tank = this.state.tanks.get(slot.sessionId);
+      if (!tank || !tank.alive) return;
+
+      // Build a lightweight state snapshot (avoids passing Colyseus schema into game package)
+      const snapshot: ThinkStateSnapshot = {
+        tanks: Array.from(this.state.tanks.values()).map(t => ({
+          sessionId: t.sessionId,
+          x: t.x,
+          y: t.y,
+          hp: t.hp,
+          alive: t.alive,
+          inventory: new Map(Array.from(t.inventory.entries())),
+        })),
+        aiSlots: this.state.aiSlots.map(s => ({
+          sessionId: s.sessionId,
+          difficulty: s.difficulty,
+        })),
+        wallMode: this.state.wallMode,
+        wind: this.state.wind,
+        gravity: this.state.gravity,
+      };
+
+      const prng = createPrng(this.matchSeed + "_ai_turn_" + this.state.tick);
+      const intent = think({ state: snapshot, terrain: this.terrain, sessionId: slot.sessionId, prng });
+
+      // Select weapon
+      const weaponDef = WEAPON_REGISTRY.get(intent.weaponId);
+      if (weaponDef && (tank.inventory.get(intent.weaponId) ?? 0) > 0) {
+        tank.weaponId = intent.weaponId;
+      }
+
+      // Equip best available shield (chance based on difficulty profile)
+      if (!tank.shieldId && prng.nextFloat() < profile.shieldEquipChance) {
+        const shieldOrder = ["force-shield", "super-magnetic", "heavy-shield", "shield"];
+        for (const shieldId of shieldOrder) {
+          const count = tank.inventory.get(shieldId) ?? 0;
+          if (count > 0) {
+            const def = SHIELD_DEFS.get(shieldId)!;
+            tank.inventory.set(shieldId, count - 1);
+            tank.shieldId = shieldId;
+            tank.shieldHp = def.maxHp;
+            tank.shieldMaxHp = def.maxHp;
+            break;
+          }
+        }
+      }
+
+      handleFire(this.resolveCtx(), slot.sessionId, intent.angle, intent.power);
+    }, profile.thinkDelayMs);
   }
 
   onJoin(client: Client, options: JoinOptions): void {

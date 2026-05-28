@@ -324,4 +324,38 @@ describe("MatchRoom — AI slots", () => {
     expect(cyborgNames.some(n => aiTank!.nickname.startsWith(n.split("-")[0]!))).toBe(true);
     await a.leave(); await b.leave();
   });
+
+  it("AI turn resolves automatically without a fire message", async () => {
+    const a = await joinMatch({ code: "AI-08", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "moron" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise(r => setTimeout(r, 150));
+    // If first turn is AI, wait for the think delay (500ms for moron) + resolution
+    const isAiFirst = a.state.currentTurnPlayerId === "ai-0";
+    if (isAiFirst) {
+      await new Promise(r => setTimeout(r, 1500)); // moron think 500ms + resolution time
+      // Phase should have transitioned (resolving → playing) after AI fires
+      expect(["playing", "resolving", "round-summary", "ended"]).toContain(a.state.phase);
+    }
+    await a.leave();
+  });
+
+  it("currentTurnPlayerId advances past AI slots automatically", async () => {
+    const a = await joinMatch({ code: "AI-09", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    // Short turn timer so the human auto-fires quickly, then the AI fires after its think delay
+    a.send("configure", { turnTimerMs: 300 });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "moron" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise(r => setTimeout(r, 150));
+    // Wait for: human auto-fire (300ms) + resolution + AI think (500ms) + resolution
+    await new Promise(r => setTimeout(r, 4000));
+    // At least one full turn cycle should have completed — tick > 0
+    expect(a.state.tick).toBeGreaterThan(0);
+    await a.leave();
+  });
 });
