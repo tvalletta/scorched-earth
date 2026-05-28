@@ -23,3 +23,5 @@ export { computeRoundEarnings, validatePurchase } from "./economy";
 export type { RoundEarnings, PurchaseResult, ShopWeaponEntry } from "./economy";
 export { processPendingEffects } from "./physics/pending-effects";
 export type { PendingEffectData, TankSnapshot, BurnDamage } from "./physics/pending-effects";
+export { resolveLaserBeam } from "./physics/laser";
+export type { LaserResult, LaserInput } from "./physics/laser";

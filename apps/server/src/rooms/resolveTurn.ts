@@ -13,6 +13,7 @@ import {
   computeDamage,
   computeRoundEarnings,
   initialVelocityFromAnglePower,
+  resolveLaserBeam,
   type TrajectoryResult,
   type WeaponDef,
   type DamageEntry,
@@ -74,6 +75,62 @@ export function handleFire(
   }
   // Resolve weapon AFTER potential reset
   const weaponDef: WeaponDef = WEAPON_REGISTRY.get(tank.weaponId) ?? BABY_MISSILE;
+
+  // Laser fast-path: instant straight-line resolution, no tick loop
+  if (weaponDef.laser) {
+    const targets = Array.from(state.tanks.values())
+      .filter(t => t.alive && t.sessionId !== sessionId)
+      .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
+
+    // Convert game angle convention (0=left, vx=-cos) to laser convention (0=right, dx=cos)
+    // by adding 180°. This ensures the laser fires in the same direction as a projectile would.
+    const laserAngleDeg = (angle + 180) % 360;
+
+    const { endX, endY, damages } = resolveLaserBeam({
+      originX: tank.x, originY: tank.y - 5,
+      angleDeg: laserAngleDeg,
+      targets,
+      damage: weaponDef.damage,
+      terrain: ctx.terrain,
+      terrainWidth: TERRAIN_WIDTH,
+      terrainHeight: TERRAIN_HEIGHT,
+    });
+
+    // Apply shield drain for each hit (commitResolution only handles hullDamage)
+    for (const d of damages) {
+      if (d.shieldDamage <= 0) continue;
+      const target = state.tanks.get(d.playerId);
+      if (!target || !target.alive) continue;
+      target.shieldHp = Math.max(0, target.shieldHp - d.shieldDamage);
+      if (target.shieldHp <= 0) target.shieldId = "";
+    }
+
+    // Broadcast the beam so clients can render it
+    ctx.broadcast("laser-beam", {
+      fromX: tank.x, fromY: tank.y - 5,
+      toX: endX, toY: endY,
+      ownerId: sessionId,
+    });
+
+    // Build a synthetic TrajectoryResult so commitResolution handles turn advancement,
+    // damage credit, and round-end detection uniformly.
+    const syntheticResult: TrajectoryResult = {
+      samples: [],
+      impact: { x: endX, y: endY },
+      durationMs: 0,
+      carveOp: null,
+      damages: damages.map(d => ({
+        playerId: d.playerId,
+        amount: d.amount,
+        shieldDamage: d.shieldDamage,
+        hullDamage: d.hullDamage,
+      })),
+    };
+
+    state.phase = "resolving";
+    commitResolution(ctx, syntheticResult, sessionId);
+    return;
+  }
 
   const { vx, vy } = initialVelocityFromAnglePower(angle, power);
   const initial: LiveProjectile = {
