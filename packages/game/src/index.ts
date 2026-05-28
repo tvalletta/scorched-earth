@@ -29,3 +29,5 @@ export { processPendingEffects } from "./physics/pending-effects";
 export type { PendingEffectData, TankSnapshot, BurnDamage } from "./physics/pending-effects";
 export { resolveLaserBeam } from "./physics/laser";
 export type { LaserResult, LaserInput } from "./physics/laser";
+export { think, shopForAi, scanBestShot, AI_PROFILES, AI_NAME_POOLS } from "./ai";
+export type { ThinkInput, ThinkStateSnapshot, AiTankSnapshot, AiIntent, ShopInput, ShopPurchase } from "./ai";
