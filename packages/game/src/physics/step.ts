@@ -226,6 +226,50 @@ export function stepProjectiles(input: StepInput): StepResult {
         continue; // don't emit terrain-impact
       }
 
+      // Plasma Wave: horizontal sweep on impact — emit plasma-wave instead of terrain-impact
+      if (p.weapon.plasmaWave) {
+        events.push({ kind: "plasma-wave", projectileId: p.id, x: p.x, y: surfaceY, weapon: p.weapon, ownerId: p.ownerId });
+        continue;
+      }
+
+      // Tracer: emit path complete, no carve, no damage
+      if (p.weapon.tracerMode) {
+        events.push({ kind: "tracer-complete", projectileId: p.id,
+                      path: [{ x: p.x, y: p.y, t: 0 }], ownerId: p.ownerId });
+        continue;
+      }
+
+      // Terrain deposit (Dirt weapons): raise heightmap, no damage
+      if (p.weapon.terrainDeposit) {
+        events.push({ kind: "terrain-deposit", projectileId: p.id,
+                      centerX: p.x, shape: p.weapon.terrainDeposit, ownerId: p.ownerId });
+        continue;
+      }
+
+      // Burrow (Sandhog/Tunneler): carve tunnel to bottom
+      if (p.weapon.burrow) {
+        events.push({ kind: "burrow-complete", projectileId: p.id, x: p.x,
+                      tunnelTopY: surfaceY, tunnelBottomY: terrainHeight,
+                      weapon: p.weapon, ownerId: p.ownerId });
+        continue;
+      }
+
+      // Smoke on impact
+      if (p.weapon.smokeOnImpact) {
+        const s = p.weapon.smokeOnImpact;
+        events.push({ kind: "smoke-deployed", projectileId: p.id, x: p.x,
+                      width: s.width, turnsLeft: s.turnsLeft, ownerId: p.ownerId });
+        continue;
+      }
+
+      // Burn on impact (Napalm, Fireball): regular impact + enqueue burn zone
+      if (p.weapon.burnOnImpact) {
+        const b = p.weapon.burnOnImpact;
+        events.push({ kind: "burn-deployed", projectileId: p.id, x: p.x,
+                      width: b.width, damage: b.damage, turnsLeft: b.turnsLeft, ownerId: p.ownerId });
+        // Fall through to normal terrain-impact for the blast damage
+      }
+
       // Normal terrain-impact (or leapfrog bounces exhausted)
       events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
       continue;

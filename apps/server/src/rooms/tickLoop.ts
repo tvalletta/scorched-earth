@@ -1,4 +1,4 @@
-import { MatchState, CarveOp, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS } from "@se/shared";
+import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS } from "@se/shared";
 import {
   computeFallDamage, BABY_MISSILE,
   computeDamage, carveInPlace,
@@ -140,6 +140,76 @@ export function applyStepEvent(
     state.terrainOps.push(op); state.terrainVersion++;
     carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
     broadcast("patriot-intercept", { patriotId: event.patriotId, targetId: event.targetId, x: event.x, y: event.y });
+    return;
+  }
+
+  if (event.kind === "plasma-wave") {
+    const WAVE_REACH = 400;
+    for (const tank of state.tanks.values()) {
+      if (!tank.alive) continue;
+      if (Math.abs(tank.x - event.x) <= WAVE_REACH) {
+        tank.hp = Math.max(0, tank.hp - event.weapon.damage);
+        if (tank.hp <= 0) tank.alive = false;
+      }
+    }
+    broadcast("plasma-wave", { x: event.x, y: event.y });
+    return;
+  }
+
+  if (event.kind === "tracer-complete") {
+    broadcast("tracer-path", { path: event.path, ownerId: event.ownerId });
+    return;
+  }
+
+  if (event.kind === "terrain-deposit") {
+    const { centerX, shape } = event;
+    const half = shape.halfWidth;
+    for (let col = Math.max(0, Math.round(centerX - half));
+             col <= Math.min(TERRAIN_WIDTH - 1, Math.round(centerX + half)); col++) {
+      const fraction = shape.spray ? Math.max(0, 1 - Math.abs(col - centerX) / half) : 1;
+      const raise = Math.round(shape.height * fraction);
+      // Lower Y value = higher terrain (screen coords); clamp to 0
+      terrain[col] = Math.max(0, (terrain[col] ?? 0) - raise);
+    }
+    state.terrainVersion++;
+    broadcast("terrain-deposited", { centerX, shape });
+    return;
+  }
+
+  if (event.kind === "burrow-complete") {
+    const TUNNEL_HALF = 10; // 20px wide total
+    const x = Math.round(event.x);
+    for (let col = Math.max(0, x - TUNNEL_HALF);
+             col <= Math.min(TERRAIN_WIDTH - 1, x + TUNNEL_HALF); col++) {
+      terrain[col] = TERRAIN_HEIGHT; // carve to bottom
+    }
+    state.terrainVersion++;
+    // Tunneler: explode at tunnel bottom if weapon has damage
+    if (event.weapon.damage > 0) {
+      const targets = Array.from(state.tanks.values()).filter(t => t.alive)
+        .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
+      const damages = computeDamage({ x: event.x, y: TERRAIN_HEIGHT - 10 }, event.weapon, targets);
+      applyDamagesWithChainKills(ctx, damages, 0);
+    }
+    broadcast("burrow-complete", { x: event.x, tunnelTopY: event.tunnelTopY });
+    return;
+  }
+
+  if (event.kind === "burn-deployed") {
+    const e = new PendingEffect();
+    e.kind = "burn-zone"; e.x = event.x; e.width = event.width;
+    e.damage = event.damage; e.turnsLeft = event.turnsLeft;
+    state.pendingEffects.push(e);
+    broadcast("burn-zone-start", { x: event.x, width: event.width, turnsLeft: event.turnsLeft });
+    return;
+  }
+
+  if (event.kind === "smoke-deployed") {
+    const e = new PendingEffect();
+    e.kind = "smoke-zone"; e.x = event.x; e.width = event.width;
+    e.damage = 0; e.turnsLeft = event.turnsLeft;
+    state.pendingEffects.push(e);
+    broadcast("smoke-zone-start", { x: event.x, width: event.width, turnsLeft: event.turnsLeft });
     return;
   }
 }
