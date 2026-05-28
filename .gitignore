@@ -35,6 +35,9 @@ yarn-debug.log*
 .claude/settings.local.json
 .claude/.credentials.json
 
+# Git worktrees
+.worktrees/
+
 # Playwright artifacts
 test-results/
 playwright-report/
