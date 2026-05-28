@@ -22,9 +22,22 @@ export function carveInPlace(
   options: CarveOptions = {},
 ): void {
   const { x: cx, y: cy, radius } = op;
+
   const xMin = Math.max(0, Math.floor(cx - radius));
   const xMax = Math.min(terrain.length - 1, Math.ceil(cx + radius));
   const maxY = options.terrainHeight ?? Number.POSITIVE_INFINITY;
+
+  // Don't carve if the top of the circle is at or below the lowest (deepest)
+  // surface in the blast span. In screen coordinates, lower Y = higher ground,
+  // so the "deepest" (most underground) surface has the HIGHEST Y value.
+  // If even the highest surface Y is still above the circle's top, nothing can
+  // be carved (no overhangs supported).
+  let maxSurfaceInSpan = 0;
+  for (let i = xMin; i <= xMax; i++) {
+    const s = terrain[i] as number;
+    if (s > maxSurfaceInSpan) maxSurfaceInSpan = s;
+  }
+  if (cy - radius >= maxSurfaceInSpan) return; // entirely underground
 
   for (let i = xMin; i <= xMax; i++) {
     const dx = i - cx;

@@ -145,11 +145,23 @@ export function applyStepEvent(
 
   if (event.kind === "plasma-wave") {
     const WAVE_REACH = 400;
-    for (const tank of state.tanks.values()) {
-      if (!tank.alive) continue;
-      if (Math.abs(tank.x - event.x) <= WAVE_REACH) {
-        tank.hp = Math.max(0, tank.hp - event.weapon.damage);
-        if (tank.hp <= 0) tank.alive = false;
+    const targets = Array.from(state.tanks.values()).filter(t => t.alive)
+      .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
+    const waveTargets = targets.filter(t => Math.abs(t.x - event.x) <= WAVE_REACH);
+    if (waveTargets.length > 0) {
+      const aliveBefore = new Set(waveTargets.map(t => t.playerId));
+      const damages = computeDamage({ x: event.x, y: event.y }, event.weapon, waveTargets);
+      applyDamagesWithChainKills(ctx, damages, 0);
+
+      // Credit kills to the firing tank
+      const firingTank = state.tanks.get(event.ownerId);
+      if (firingTank) {
+        const directHull = damages.reduce((s, d) => s + d.hullDamage, 0);
+        firingTank.damageDealtThisRound += directHull;
+        const aliveAfter = new Set(Array.from(state.tanks.values()).filter(t => t.alive).map(t => t.sessionId));
+        for (const id of aliveBefore) {
+          if (!aliveAfter.has(id) && id !== event.ownerId) firingTank.killsThisRound += 1;
+        }
       }
     }
     broadcast("plasma-wave", { x: event.x, y: event.y });
