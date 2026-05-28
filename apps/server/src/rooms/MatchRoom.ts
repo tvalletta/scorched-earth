@@ -402,6 +402,11 @@ export class MatchRoom extends Room<MatchState> {
       for (const [weaponId, count] of Object.entries(loadout.weapons)) {
         tank.inventory.set(weaponId, count);
       }
+      // Seed starting items
+      tank.inventory.set("parachute", 1);
+      if (this.state.loadoutId === "bonanza") {
+        tank.inventory.set("shield", 1);
+      }
       tank.weaponId = "baby-missile";
     }
   }
