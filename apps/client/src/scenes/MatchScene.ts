@@ -1,4 +1,4 @@
-import { Application, Container } from "pixi.js";
+import { Application, Container, Graphics } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
@@ -107,6 +107,67 @@ export class MatchScene {
         .map(e => ({ kind: e.kind as "burn-zone" | "smoke-zone", x: e.x, width: e.width }));
       this.terrain?.updateZones(this.activeZones);
       this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+    });
+    room.onMessage("laser-beam", (msg: { fromX: number; fromY: number; toX: number; toY: number }) => {
+      const g = new Graphics();
+      g.moveTo(msg.fromX, msg.fromY)
+       .lineTo(msg.toX, msg.toY)
+       .stroke({ color: 0xff00ff, width: 4, alpha: 1 });
+      this.world.addChild(g);
+      let alpha = 1;
+      const fade = setInterval(() => {
+        alpha -= 0.1;
+        g.alpha = alpha;
+        if (alpha <= 0) { clearInterval(fade); g.destroy(); }
+      }, 30);
+    });
+    room.onMessage("plasma-wave", (msg: { x: number; y: number }) => {
+      const g = new Graphics();
+      g.moveTo(msg.x - 400, msg.y).lineTo(msg.x + 400, msg.y)
+       .stroke({ color: 0x00ffff, width: 6, alpha: 0.8 });
+      this.world.addChild(g);
+      let alpha = 0.8;
+      const fade = setInterval(() => {
+        alpha -= 0.08;
+        g.alpha = alpha;
+        if (alpha <= 0) { clearInterval(fade); g.destroy(); }
+      }, 30);
+    });
+    room.onMessage("leapfrog-bounce", (msg: { x: number; y: number; bounceNum: number }) => {
+      const g = new Graphics();
+      const r = 15 + msg.bounceNum * 5;
+      g.circle(msg.x, msg.y, r).fill({ color: 0xffff00, alpha: 0.7 });
+      this.world.addChild(g);
+      setTimeout(() => { g.destroy(); }, 200);
+    });
+    room.onMessage("terrain-deposited", (msg: { centerX: number; shape: { halfWidth: number; height: number } }) => {
+      const g = new Graphics();
+      const baseY = this.terrain?.heightAt(msg.centerX) ?? 0;
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI * 2 * i) / 8;
+        const dist = 20 + Math.random() * 20;
+        const px = msg.centerX + Math.cos(angle) * dist;
+        const py = baseY + Math.sin(angle) * dist * 0.5;
+        g.circle(px, py, 4).fill({ color: 0x8b6914, alpha: 0.7 });
+      }
+      this.world.addChild(g);
+      setTimeout(() => { g.destroy(); }, 300);
+    });
+    room.onMessage("burrow-complete", (msg: { x: number; tunnelTopY: number }) => {
+      const g = new Graphics();
+      for (let i = 0; i < 6; i++) {
+        const px = msg.x + (Math.random() - 0.5) * 30;
+        const py = msg.tunnelTopY - Math.random() * 15;
+        g.circle(px, py, 5).fill({ color: 0x8b6914, alpha: 0.6 });
+      }
+      this.world.addChild(g);
+      setTimeout(() => { g.destroy(); }, 400);
+    });
+    room.onMessage("roller-hit", (msg: { x: number; y: number }) => {
+      const g = new Graphics();
+      g.circle(msg.x, msg.y, 20).fill({ color: 0xff8800, alpha: 0.8 });
+      this.world.addChild(g);
+      setTimeout(() => { g.destroy(); }, 150);
     });
     room.onMessage("round-summary", (msg) => {
       this.lastRoundSummaryPayload = msg;
