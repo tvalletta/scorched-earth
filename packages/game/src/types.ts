@@ -21,6 +21,18 @@ export interface SplitDef {
   child: WeaponDef;          // weapon applied to every sub-munition
 }
 
+export interface DepositShape {
+  halfWidth: number;
+  height: number;
+  spray?: boolean;
+}
+
+export interface BurnOnImpact {
+  width: number;
+  damage: number;
+  turnsLeft: number;
+}
+
 export interface WeaponDef {
   id: string;
   radius: number;
@@ -29,6 +41,17 @@ export interface WeaponDef {
   split?: SplitDef;
   price: number;      // $ cost per purchase; 0 = free
   packSize: number;   // units granted per purchase; 0 = not sold in shop (sub-munitions)
+  // Phase 4 extensions
+  shieldPierce?: number;       // 0–1: fraction of damage bypassing shield. Default 0.
+  laser?: boolean;             // Instant straight-line; no arc simulation.
+  plasmaWave?: boolean;        // Horizontal expansion at impact y.
+  rollOnImpact?: boolean;      // Converts to surface-rolling on terrain hit.
+  leapCount?: number;          // Bounces N times at 70% velocity before final impact.
+  burrow?: boolean;            // Carves vertical tunnel on terrain hit.
+  terrainDeposit?: DepositShape; // Raises heightmap on impact (no damage).
+  burnOnImpact?: BurnOnImpact;   // Enqueues a burn-zone PendingEffect on impact.
+  smokeOnImpact?: { width: number; turnsLeft: number }; // Enqueues smoke-zone.
+  tracerMode?: boolean;        // Fires no-damage shell; returns full path; no terrain carve.
 }
 
 export interface TargetInfo {
@@ -85,6 +108,11 @@ export interface LiveProjectile {
   apexReached: boolean;
   isPatriot?: true;
   targetId?: string;
+  // Phase 4 extensions
+  bounceCount?: number;  // Leapfrog — incremented each bounce
+  isRolling?: boolean;   // Roller — rolling along terrain surface
+  rollDir?: 1 | -1;      // Roller — direction of roll (+1 right, -1 left)
+  isBurrowing?: boolean; // Sandhog/Tunneler — currently boring downward
 }
 
 export interface StepTankInfo {
@@ -117,7 +145,18 @@ export type StepEvent =
   | { kind: "shield-bend";    projectileId: string; targetId: string; impulseX: number; impulseY: number }
   | { kind: "out-of-bounds";  projectileId: string }
   | { kind: "mirv-split";     projectileId: string; x: number; y: number; children: LiveProjectile[] }
-  | { kind: "patriot-intercept"; patriotId: string; targetId: string; x: number; y: number };
+  | { kind: "patriot-intercept"; patriotId: string; targetId: string; x: number; y: number }
+  // Phase 4
+  | { kind: "leapfrog-bounce";  projectileId: string; x: number; y: number; weapon: WeaponDef; bounceNum: number; ownerId: string }
+  | { kind: "roller-roll";      projectileId: string; x: number; y: number }
+  | { kind: "roller-hit";       projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string }
+  | { kind: "laser-beam";       projectileId: string; fromX: number; fromY: number; toX: number; toY: number; damages: DamageEntry[]; ownerId: string }
+  | { kind: "plasma-wave";      projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string }
+  | { kind: "terrain-deposit";  projectileId: string; centerX: number; shape: DepositShape; ownerId: string }
+  | { kind: "burrow-complete";  projectileId: string; x: number; tunnelTopY: number; tunnelBottomY: number; weapon: WeaponDef; ownerId: string }
+  | { kind: "tracer-complete";  projectileId: string; path: Array<TrajectorySample>; ownerId: string }
+  | { kind: "smoke-deployed";   projectileId: string; x: number; width: number; turnsLeft: number; ownerId: string }
+  | { kind: "burn-deployed";    projectileId: string; x: number; width: number; damage: number; turnsLeft: number; ownerId: string };
 
 export interface StepResult {
   survivors: LiveProjectile[];
