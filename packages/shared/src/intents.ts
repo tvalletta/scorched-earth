@@ -10,7 +10,10 @@ export type Intent =
   | { kind: "ready-for-shop" }
   | { kind: "move"; direction: "left" | "right"; pixels: number }
   | { kind: "equip-shield"; shieldId: string }
-  | { kind: "use-battery" };
+  | { kind: "use-battery" }
+  | { kind: "add-ai"; difficulty: string }
+  | { kind: "remove-ai"; sessionId: string }
+  | { kind: "set-ai-difficulty"; sessionId: string; difficulty: string };
 
 export type IntentKind = Intent["kind"];
 

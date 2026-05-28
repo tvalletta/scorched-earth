@@ -44,3 +44,7 @@ export function parsePool<T extends string>(
     .map((s) => s.trim() as T)
     .filter((s) => (all as readonly string[]).includes(s));
 }
+
+// Phase 7 — AI opponents
+export type AiDifficulty = "moron" | "shooter" | "pyro" | "cyborg" | "bouncer";
+export const ALL_AI_DIFFICULTIES: AiDifficulty[] = ["moron", "shooter", "pyro", "cyborg", "bouncer"];
