@@ -174,6 +174,19 @@ export function stepProjectiles(input: StepInput): StepResult {
     // 6. Terrain collision
     const surfaceY = heightAt(terrain, p.x);
     if (p.y >= surfaceY) {
+      // Leapfrog bounce: reflect and decay up to leapCount times before final impact
+      if (p.weapon.leapCount !== undefined && (p.bounceCount ?? 0) < p.weapon.leapCount) {
+        p.vx *= 0.7;
+        p.vy = -Math.abs(p.vy) * 0.7;
+        const bounceNum = (p.bounceCount ?? 0) + 1;
+        p.bounceCount = bounceNum;
+        p.y = surfaceY - 1; // push above terrain
+        events.push({ kind: "leapfrog-bounce", projectileId: p.id, x: p.x, y: surfaceY,
+                      weapon: p.weapon, bounceNum, ownerId: p.ownerId });
+        survivors.push(p);
+        continue; // keep projectile alive, skip terrain-impact
+      }
+      // Normal terrain-impact (or leapfrog bounces exhausted)
       events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
       continue;
     }
