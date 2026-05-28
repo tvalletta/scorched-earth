@@ -128,15 +128,36 @@ describe("stepProjectiles — absorb shield", () => {
   });
 
   it("overflow equals zero when shield has enough HP", () => {
-    // Shield HP 200, BABY_MISSILE.damage should be <= 200
+    // Shield HP 200, BABY_MISSILE.damage is <= 200
     const tank = absorbTank({ shieldHp: 200 });
     const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
     const ev = result.events.find(e => e.kind === "shield-absorb");
+    expect(ev).toBeDefined();
     if (ev?.kind === "shield-absorb") {
-      if (BABY_MISSILE.damage <= 200) {
-        expect(ev.overflow).toBe(0);
-      }
+      expect(ev.overflow).toBe(0);
+    }
+  });
+
+  it("shield-absorb event carries ownerId for force-shield reflect", () => {
+    const tanks: StepTankInfo[] = [{
+      sessionId: "p2", x: 400, y: 400,
+      shieldHp: 500, shieldMaxHp: 500, shieldRadius: 65,
+      shieldType: "absorb",
+    }];
+    const result = stepProjectiles({
+      projectiles: [{
+        id: "proj1", x: 395, y: 400, vx: 100, vy: 0,
+        weapon: BABY_MISSILE, ownerId: "p1", apexReached: true,
+      }],
+      tanks, terrain: new Int16Array(1600).fill(900),
+      terrainWidth: 1600, terrainHeight: 900,
+      wind: 0, gravity: 0, dt: 1 / 60, wallMode: "none",
+    });
+    const absorb = result.events.find(e => e.kind === "shield-absorb");
+    expect(absorb).toBeDefined();
+    if (absorb?.kind === "shield-absorb") {
+      expect(absorb.ownerId).toBe("p1"); // server uses this to reflect damage to attacker
     }
   });
 

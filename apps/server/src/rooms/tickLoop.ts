@@ -10,8 +10,6 @@ import type { ResolveContext } from "./resolveTurn";
 
 const PATRIOT_DETECT_RADIUS = 200;
 const PATRIOT_CARVE_RADIUS = 30;
-const REACTIVE_CARVE_RADIUS = 60;
-const REACTIVE_DAMAGE = 40;
 
 export function buildStepTanks(state: MatchState): StepTankInfo[] {
   return Array.from(state.tanks.values())
@@ -33,7 +31,7 @@ export function buildStepTanks(state: MatchState): StepTankInfo[] {
 export function applyStepEvent(
   ctx: ResolveContext,
   event: StepEvent,
-  liveProjectiles: LiveProjectile[],
+  _liveProjectiles: LiveProjectile[],
   firingSessionId: string,
 ): void {
   const { state, broadcast, terrain } = ctx;
@@ -98,36 +96,8 @@ export function applyStepEvent(
     return;
   }
 
-  if (event.kind === "shield-deflect") {
-    const tank = state.tanks.get(event.targetId);
-    if (tank) {
-      tank.shieldHp = event.hpAfter;
-      if (tank.shieldHp <= 0) tank.shieldId = "";
-    }
-    const p = liveProjectiles.find(lp => lp.id === event.projectileId);
-    if (p) { p.vx = event.newVx; p.vy = event.newVy; }
-    broadcast("shield-hit", { targetId: event.targetId, type: "deflect", hpBefore: event.hpBefore, hpAfter: event.hpAfter });
-    return;
-  }
-
   if (event.kind === "shield-bend") {
     broadcast("shield-hit", { targetId: event.targetId, type: "bend" });
-    return;
-  }
-
-  if (event.kind === "shield-explode") {
-    const tank = state.tanks.get(event.targetId);
-    if (tank) { tank.shieldHp = 0; tank.shieldId = ""; }
-    const op = new CarveOp();
-    op.x = Math.round(event.x); op.y = Math.round(event.y); op.radius = REACTIVE_CARVE_RADIUS; op.tick = state.tick + 1;
-    state.terrainOps.push(op); state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
-    const targets = Array.from(state.tanks.values()).filter(t => t.alive)
-      .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
-    const reactiveWeapon = { id: "reactive-blast", radius: REACTIVE_CARVE_RADIUS, damage: REACTIVE_DAMAGE, windImmune: true, price: 0, packSize: 0 };
-    const damages = computeDamage({ x: event.x, y: event.y }, reactiveWeapon as any, targets);
-    applyDamagesWithChainKills(ctx, damages, 0);
-    broadcast("shield-hit", { targetId: event.targetId, type: "explode" });
     return;
   }
 
