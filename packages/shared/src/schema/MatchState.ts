@@ -2,6 +2,7 @@ import { Schema, MapSchema, ArraySchema, type } from "@colyseus/schema";
 import { Tank } from "./Tank";
 import { CarveOp } from "./CarveOp";
 import { PendingEffect } from "./PendingEffect";
+import { AiSlot } from "./AiSlot";
 
 export type MatchPhase =
   | "lobby"
@@ -42,4 +43,6 @@ export class MatchState extends Schema {
   // Phase 4 — tick-stream
   @type("number") resolvingTick = 0;
   @type([PendingEffect]) pendingEffects = new ArraySchema<PendingEffect>();
+  // Phase 7 — AI opponents
+  @type([AiSlot]) aiSlots = new ArraySchema<AiSlot>();
 }
