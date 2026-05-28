@@ -1,6 +1,7 @@
 import type { LiveProjectile, StepInput, StepResult, StepEvent } from "../types";
 
 const WIND_ACCEL_SCALE = 5.0;
+const ROLLER_SPEED = 200; // px/s
 
 export function initialVelocityFromAnglePower(angle: number, power: number): { vx: number; vy: number } {
   const a = (angle * Math.PI) / 180;
@@ -50,6 +51,34 @@ export function stepProjectiles(input: StepInput): StepResult {
   const intercepted = new Set<string>();
 
   for (const p of projectiles) {
+    // 0. Rolling projectile — surface-hugging movement (skip normal physics)
+    if (p.isRolling) {
+      const rollerDir = p.rollDir ?? 1;
+      p.x += rollerDir * ROLLER_SPEED * dt;
+      const rollerSurfaceY = heightAt(terrain, p.x);
+      p.y = rollerSurfaceY;
+
+      // Out of bounds
+      if (p.x < 0 || p.x >= terrainWidth) {
+        events.push({ kind: "out-of-bounds", projectileId: p.id });
+        continue;
+      }
+
+      // Check tank collision
+      let hitTank = false;
+      for (const tank of tanks) {
+        const dx = p.x - tank.x;
+        const dy = p.y - tank.y;
+        if (Math.sqrt(dx * dx + dy * dy) < p.weapon.radius + 10) {
+          events.push({ kind: "roller-hit", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
+          hitTank = true;
+          break;
+        }
+      }
+      if (!hitTank) survivors.push(p);
+      continue; // skip normal physics for rolling projectile
+    }
+
     // 1. Apply physics — capture prevVy before gravity so apex detection is correct
     // Accelerations are per-second (scaled by dt); velocities are per-tick (applied directly)
     const prevVy = p.vy;
@@ -186,6 +215,17 @@ export function stepProjectiles(input: StepInput): StepResult {
         survivors.push(p);
         continue; // keep projectile alive, skip terrain-impact
       }
+      // Roller: convert to surface-rolling on first terrain hit
+      if (p.weapon.rollOnImpact && !p.isRolling) {
+        p.isRolling = true;
+        p.rollDir = p.vx >= 0 ? 1 : -1;
+        p.vx = p.rollDir * ROLLER_SPEED;
+        p.vy = 0;
+        p.y = surfaceY; // snap to surface
+        survivors.push(p);
+        continue; // don't emit terrain-impact
+      }
+
       // Normal terrain-impact (or leapfrog bounces exhausted)
       events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
       continue;

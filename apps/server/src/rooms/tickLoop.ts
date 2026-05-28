@@ -82,6 +82,22 @@ export function applyStepEvent(
     return;
   }
 
+  if (event.kind === "roller-hit") {
+    const { x, y, weapon, ownerId } = event;
+    const op = new CarveOp();
+    op.x = Math.round(x); op.y = Math.round(y);
+    op.radius = weapon.radius; op.tick = state.tick + 1;
+    state.terrainOps.push(op);
+    state.terrainVersion++;
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    const targets = Array.from(state.tanks.values()).filter(t => t.alive)
+      .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
+    const damages = computeDamage({ x, y }, weapon, targets);
+    applyDamagesWithChainKills(ctx, damages, 0);
+    broadcast("roller-hit", { x, y, ownerId });
+    return;
+  }
+
   if (event.kind === "shield-absorb") {
     const tank = state.tanks.get(event.targetId);
     if (tank) {
