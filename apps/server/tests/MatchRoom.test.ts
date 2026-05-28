@@ -231,3 +231,66 @@ describe("MatchRoom — host migration", () => {
     await b.leave();
   });
 });
+
+// ── Phase 7: AI slots ────────────────────────────────────────────────────
+
+describe("MatchRoom — AI slots", () => {
+  it("host add-ai appends a slot with the requested difficulty", async () => {
+    const a = await joinMatch({ code: "AI-01", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "cyborg" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots.length).toBe(1);
+    expect(a.state.aiSlots[0]!.difficulty).toBe("cyborg");
+    expect(a.state.aiSlots[0]!.sessionId).toBe("ai-0");
+    await a.leave();
+  });
+
+  it("non-host add-ai is ignored", async () => {
+    const a = await joinMatch({ code: "AI-02", nickname: "Host", color: "red" });
+    const b = await joinMatch({ code: "AI-02", nickname: "Bob", color: "blue" });
+    await new Promise(r => setTimeout(r, 30));
+    b.send("add-ai", { difficulty: "moron" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots.length).toBe(0);
+    await a.leave(); await b.leave();
+  });
+
+  it("host remove-ai removes the slot by sessionId", async () => {
+    const a = await joinMatch({ code: "AI-03", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "shooter" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots.length).toBe(1);
+    a.send("remove-ai", { sessionId: "ai-0" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots.length).toBe(0);
+    await a.leave();
+  });
+
+  it("host set-ai-difficulty updates the slot difficulty", async () => {
+    const a = await joinMatch({ code: "AI-04", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    a.send("add-ai", { difficulty: "moron" });
+    await new Promise(r => setTimeout(r, 50));
+    a.send("set-ai-difficulty", { sessionId: "ai-0", difficulty: "bouncer" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots[0]!.difficulty).toBe("bouncer");
+    await a.leave();
+  });
+
+  it("add-ai is rejected if room is full", async () => {
+    const a = await joinMatch({ code: "AI-05", nickname: "Host", color: "red" });
+    await new Promise(r => setTimeout(r, 30));
+    // Add 9 AI slots (host + 9 AI = 10 = maxPlayers)
+    for (let i = 0; i < 9; i++) {
+      a.send("add-ai", { difficulty: "moron" });
+      await new Promise(r => setTimeout(r, 20));
+    }
+    // 10th add-ai should be rejected
+    a.send("add-ai", { difficulty: "moron" });
+    await new Promise(r => setTimeout(r, 50));
+    expect(a.state.aiSlots.length).toBe(9);
+    await a.leave();
+  });
+});

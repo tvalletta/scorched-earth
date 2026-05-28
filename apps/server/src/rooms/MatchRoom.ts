@@ -1,6 +1,6 @@
 import { Room, type Client } from "colyseus";
 import {
-  MatchState, Tank, PendingEffect,
+  MatchState, Tank, PendingEffect, AiSlot,
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
@@ -9,10 +9,14 @@ import {
   ROUND_SUMMARY_DURATION_MS,
   SHIELD_DEFS,
   parsePool, ALL_TERRAIN_TYPES, ALL_WALL_MODES,
+  ALL_AI_DIFFICULTIES,
   type TankColor, type TankHat,
   type TerrainType, type WallMode,
 } from "@se/shared";
-import { generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY, stepProjectiles, processPendingEffects, type LiveProjectile } from "@se/game";
+import {
+  generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
+  stepProjectiles, processPendingEffects, type LiveProjectile,
+} from "@se/game";
 import { handleFire, type ResolveContext } from "./resolveTurn";
 import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
@@ -74,6 +78,44 @@ export class MatchRoom extends Room<MatchState> {
         const parsed = parsePool(msg.wallModePool, ALL_WALL_MODES);
         if (parsed.length > 0) this.state.wallModePool = msg.wallModePool;
       }
+    });
+
+    this.onMessage("add-ai", (client, msg: { difficulty?: string }) => {
+      if (client.sessionId !== this.state.hostId) return;
+      if (this.state.phase !== "lobby") return;
+      const difficulty = String(msg?.difficulty ?? "shooter");
+      if (!(ALL_AI_DIFFICULTIES as string[]).includes(difficulty)) return;
+      const totalSlots = this.state.tanks.size + this.state.aiSlots.length;
+      if (totalSlots >= this.maxClients) return;
+      const slot = new AiSlot();
+      slot.sessionId = "ai-" + this.state.aiSlots.length;
+      slot.difficulty = difficulty;
+      slot.nickname = "";
+      this.state.aiSlots.push(slot);
+    });
+
+    this.onMessage("remove-ai", (client, msg: { sessionId?: string }) => {
+      if (client.sessionId !== this.state.hostId) return;
+      if (this.state.phase !== "lobby") return;
+      const targetId = String(msg?.sessionId ?? "");
+      const idx = this.state.aiSlots.findIndex(s => s.sessionId === targetId);
+      if (idx === -1) return;
+      this.state.aiSlots.splice(idx, 1);
+      // Re-index remaining slots
+      for (let i = 0; i < this.state.aiSlots.length; i++) {
+        this.state.aiSlots[i]!.sessionId = "ai-" + i;
+      }
+    });
+
+    this.onMessage("set-ai-difficulty", (client, msg: { sessionId?: string; difficulty?: string }) => {
+      if (client.sessionId !== this.state.hostId) return;
+      if (this.state.phase !== "lobby") return;
+      const targetId = String(msg?.sessionId ?? "");
+      const difficulty = String(msg?.difficulty ?? "");
+      if (!(ALL_AI_DIFFICULTIES as string[]).includes(difficulty)) return;
+      const slot = this.state.aiSlots.find(s => s.sessionId === targetId);
+      if (!slot) return;
+      slot.difficulty = difficulty;
     });
 
     this.onMessage("ready", (client) => {
