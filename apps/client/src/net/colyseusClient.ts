@@ -31,9 +31,27 @@ export async function createMatch(
   return { room, code };
 }
 
+export class RoomNotFoundError extends Error {
+  constructor(public code: string) {
+    super(`Room ${code} not found`);
+    this.name = "RoomNotFoundError";
+  }
+}
+
 export async function joinMatch(
   code: string,
   meta: { nickname: string; color: string; hat: string },
 ): Promise<Room<MatchState>> {
-  return getClient().joinOrCreate<MatchState>("match", { code, ...meta });
+  // Use join (not joinOrCreate): an invite to a missing room must error, not
+  // silently spin up a fresh empty room behind the same code.
+  try {
+    return await getClient().join<MatchState>("match", { code, ...meta });
+  } catch (e: unknown) {
+    const err = e as { code?: number; message?: string };
+    const msg = String(err?.message ?? e);
+    if (err?.code === 4210 || err?.code === 4212 || /no rooms|not found|invalid room/i.test(msg)) {
+      throw new RoomNotFoundError(code);
+    }
+    throw e;
+  }
 }
