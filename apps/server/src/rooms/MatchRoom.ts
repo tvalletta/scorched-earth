@@ -128,6 +128,7 @@ export class MatchRoom extends Room<MatchState> {
     });
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
+      if (this.observers.has(client.sessionId)) return; // observers cannot fire
       const wasPlaying = this.state.phase === "playing";
       handleFire(this.resolveCtx(), client.sessionId, msg.angle, msg.power);
       if (wasPlaying && this.state.phase === "resolving" && this.timeoutHandle) {

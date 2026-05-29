@@ -386,6 +386,33 @@ describe("MatchRoom — AI slots", () => {
   });
 });
 
+describe("MatchRoom — observer intent guard", () => {
+  it("observer fire intent is ignored", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    // C joins mid-game — becomes observer
+    const c = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Carol", color: "green" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(a.state.tanks.has(c.sessionId)).toBe(false);
+
+    const phaseBefore = a.state.phase;
+    c.send("fire", { angle: 45, power: 500 });
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Phase must not have changed (observer fire should be silently dropped)
+    expect(a.state.phase).toBe(phaseBefore);
+
+    await a.leave();
+    await b.leave();
+    await c.leave();
+  });
+});
+
 describe("MatchRoom — ghost AI on reconnect failure", () => {
   it("ghost AI takes over when reconnection expires", async () => {
     const a = await colyseus.sdk.joinOrCreate("match", { code: "GHOST1", nickname: "Alice", color: "red" });
