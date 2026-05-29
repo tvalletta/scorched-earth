@@ -25,6 +25,7 @@ import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
   applyFallDamage, commitTurnEnd,
 } from "./tickLoop";
+import { randomSlots } from "./placement";
 
 interface JoinOptions {
   code: string;
@@ -600,11 +601,11 @@ export class MatchRoom extends Room<MatchState> {
   private placeTanksOn(terrain: Int16Array): void {
     const tanks = Array.from(this.state.tanks.values());
     if (tanks.length === 0) return;
-    const slotWidth = TERRAIN_WIDTH / (tanks.length + 1);
-    tanks.forEach((tank, i) => {
-      const x = Math.round(slotWidth * (i + 1));
-      tank.x = x;
-      tank.y = terrain[x] ?? 0;
+    const xs = randomSlots(tanks.length, terrain);
+    const shuffled = [...tanks].sort(() => Math.random() - 0.5);
+    shuffled.forEach((tank, i) => {
+      tank.x = xs[i]!;
+      tank.y = terrain[xs[i]!] ?? 0;
     });
   }
 

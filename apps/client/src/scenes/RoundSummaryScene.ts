@@ -36,7 +36,7 @@ export class RoundSummaryScene {
     this.el.className = "interactive";
     this.el.style.cssText = [
       "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;",
-      "background:rgba(0,0,0,0.72);z-index:200;",
+      "background:rgba(8,6,24,0.88);z-index:200;",
     ].join("");
 
     const sorted = [...payload.players].sort((a, b) => a.newRank - b.newRank);
@@ -51,25 +51,25 @@ export class RoundSummaryScene {
       }
       const dead = !p.survived ? "opacity:0.55;" : "";
       return `
-        <tr style="${dead}border-bottom:1px solid #2a2a3e;">
-          <td style="padding:6px 8px;color:${p.newRank === 1 ? "#f4c842" : "#aaa"};">${p.newRank}</td>
-          <td style="padding:6px 8px;">
+        <tr style="${dead}border-bottom:1px solid rgba(255,255,255,0.08);">
+          <td style="padding:6px 8px;color:${p.newRank === 1 ? "#ff8c00" : "#94a3b8"};">${p.newRank}</td>
+          <td style="padding:6px 8px;color:#e2e8f0;">
             ${p.newRank === 1 ? "👑 " : p.survived ? "" : "💀 "}${escHtml(p.nickname)}${trendBadge}
           </td>
-          <td style="padding:6px 8px;text-align:right;">${p.damageDealt}</td>
-          <td style="padding:6px 8px;text-align:right;">${p.kills}</td>
-          <td style="padding:6px 8px;text-align:right;color:#4c4;">+$${p.earned.toLocaleString()}</td>
-          <td style="padding:6px 8px;text-align:right;color:${p.newRank === 1 ? "#f4c842" : "#e0e0e0"};font-weight:${p.newRank === 1 ? "bold" : "normal"};">$${p.totalCash.toLocaleString()}</td>
+          <td style="padding:6px 8px;text-align:right;color:#e2e8f0;">${p.damageDealt}</td>
+          <td style="padding:6px 8px;text-align:right;color:#e2e8f0;">${p.kills}</td>
+          <td style="padding:6px 8px;text-align:right;color:#fbbf24;">+$${p.earned.toLocaleString()}</td>
+          <td style="padding:6px 8px;text-align:right;color:${p.newRank === 1 ? "#ff8c00" : "#e2e8f0"};font-weight:${p.newRank === 1 ? "bold" : "normal"};">$${p.totalCash.toLocaleString()}</td>
         </tr>`;
     }).join("");
 
     this.el.innerHTML = `
-      <div style="background:#12121e;border-radius:10px;padding:20px;min-width:480px;max-width:640px;color:#e0e0e0;font-family:monospace;font-size:11px;">
-        <div style="text-align:center;color:#f4c842;font-weight:bold;font-size:15px;margin-bottom:14px;letter-spacing:1px;">
+      <div style="background:#0a0820;border:2px solid rgba(255,140,0,0.4);border-radius:12px;padding:20px;min-width:480px;max-width:640px;color:#e2e8f0;font-family:monospace;font-size:11px;">
+        <div style="text-align:center;font:900 22px 'Impact',fantasy;color:#ff8c00;letter-spacing:2px;text-shadow:0 0 12px rgba(255,140,0,0.3);margin-bottom:14px;">
           ⚡ ROUND ${payload.round} OF ${payload.maxRounds} COMPLETE
         </div>
         <table style="width:100%;border-collapse:collapse;">
-          <tr style="color:#666;border-bottom:1px solid #2a2a3e;font-size:9px;text-transform:uppercase;letter-spacing:1px;">
+          <tr style="color:#94a3b8;border-bottom:1px solid rgba(255,255,255,0.08);font-size:9px;text-transform:uppercase;letter-spacing:1px;">
             <td style="padding:4px 8px;">#</td>
             <td style="padding:4px 8px;">Player</td>
             <td style="padding:4px 8px;text-align:right;">Dmg</td>
@@ -81,11 +81,11 @@ export class RoundSummaryScene {
         </table>
         <div style="margin-top:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-            <span style="color:#666;font-size:9px;">Shop opens in…</span>
-            <span id="rs-countdown" style="color:#f4c842;font-weight:bold;font-size:13px;"></span>
+            <span style="color:#94a3b8;font-size:9px;">Shop opens in…</span>
+            <span id="rs-countdown" style="color:#ff8c00;font-weight:bold;font-size:13px;"></span>
           </div>
-          <div style="background:#2a2a3e;border-radius:3px;height:4px;overflow:hidden;">
-            <div id="rs-bar" style="background:#f4c842;height:4px;width:100%;border-radius:3px;transition:width 0.1s linear;"></div>
+          <div style="background:#1a1535;border-radius:3px;height:4px;overflow:hidden;">
+            <div id="rs-bar" style="background:linear-gradient(90deg,#ff8c00,#ff4500);height:4px;width:100%;border-radius:3px;transition:width 0.1s linear;"></div>
           </div>
         </div>
       </div>
