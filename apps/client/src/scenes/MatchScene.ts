@@ -20,6 +20,8 @@ import { RoundInfo } from "../hud/RoundInfo";
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
 import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
 import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
+import { Camera } from '../render/Camera';
+import type { TankPosition } from '../render/Camera';
 
 declare global {
   interface Window {
@@ -48,6 +50,8 @@ export class MatchScene {
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
+  private camera: Camera | null = null;
+  private sky: SkyRenderer | null = null;
   private lastRoundSummaryPayload: unknown = null;
   private lastPhase: MatchPhase = "lobby";
 
@@ -59,8 +63,8 @@ export class MatchScene {
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
-    this.fit();
-    window.addEventListener("resize", () => this.fit());
+    this.camera = new Camera(this.world, this.app);
+    window.addEventListener('resize', () => this.fitToLivingTanks());
 
     window.__room = room;
     window.__sessionId = room.sessionId;
@@ -75,6 +79,10 @@ export class MatchScene {
     room.onMessage("tick", (msg: { tick: number; projectiles: {id:string;x:number;y:number;vx:number;vy:number;weaponId:string}[]; patriots: {id:string;x:number;y:number;vx:number;vy:number}[] }) => {
       this.projectileRenderer.onTick(msg.projectiles);
       this.patriotRenderer.onTick(msg.patriots);
+      if (msg.projectiles.length > 0) {
+        const p = msg.projectiles[0]!;
+        this.camera?.trackProjectile(p.x, p.y);
+      }
     });
     room.onMessage("shield-hit", (msg: { targetId: string; type: string }) => {
       this.tanks.get(msg.targetId)?.flashShield();
@@ -176,7 +184,10 @@ export class MatchScene {
       this.showMatchEnd(msg);
     });
 
-    this.app.ticker.add(() => {
+    this.app.ticker.add((ticker) => {
+      const dt = ticker.deltaMS / 1000;
+      this.camera?.update(dt);
+      this.sky?.update(dt, this.camera?.worldX ?? 0);
       this.activeAnims = this.activeAnims.filter((a) => {
         if (a.tick()) {
           a.removeFromParent();
@@ -190,21 +201,21 @@ export class MatchScene {
     });
   }
 
-  private fit() {
-    const sx = window.innerWidth / TERRAIN_WIDTH;
-    const sy = window.innerHeight / TERRAIN_HEIGHT;
-    const s = Math.min(sx, sy);
-    this.world.scale.set(s);
-    this.world.position.set(
-      (window.innerWidth - TERRAIN_WIDTH * s) / 2,
-      (window.innerHeight - TERRAIN_HEIGHT * s) / 2,
-    );
+  private fitToLivingTanks(): void {
+    const positions: TankPosition[] = [];
+    for (const [id, _view] of this.tanks.entries()) {
+      const tank = this.room.state.tanks.get(id);
+      if (tank?.alive) positions.push({ x: tank.x, y: tank.y });
+    }
+    if (positions.length > 0) this.camera?.fitToTanks(positions);
   }
 
   private onFirstState(state: MatchState) {
     console.log("[match] first state, phase=", state.phase, "tanks=", state.tanks.size);
     const timeOfDay = timeOfDayFromSeed(state.terrainSeed);
-    this.world.addChild(new SkyRenderer(timeOfDay, this.app.canvas.width, this.app.canvas.height));
+    const sky = new SkyRenderer(timeOfDay, window.innerWidth, window.innerHeight);
+    this.sky = sky;
+    this.app.stage.addChildAt(sky, 0); // behind world (world is at index 1)
 
     // Terrain seed is set when the match starts (not in lobby). Rebuild terrain
     // whenever the seed arrives so the client renders the same heightmap the
@@ -213,7 +224,7 @@ export class MatchScene {
       if (!seed) return;
       if (this.terrain) this.terrain.removeFromParent();
       const t = new TerrainRenderer(seed, state.terrainType as TerrainType);
-      this.world.addChildAt(t, 1); // index 1 = behind tanks, in front of sky
+      this.world.addChildAt(t, 0); // terrain at back of world (sky is now on stage, not world)
       this.terrain = t;
     };
 
@@ -297,6 +308,8 @@ export class MatchScene {
       this.weaponBar.hide();
       this.showObserverBanner();
     }
+
+    setTimeout(() => this.fitToLivingTanks(), 300);
   }
 
   private showObserverBanner(): void {
@@ -309,12 +322,22 @@ export class MatchScene {
     document.getElementById("ui")!.appendChild(banner);
   }
 
-  private onDamage(_msg: unknown) { /* later */ }
+  private onDamage(msg: { sessionId?: string; damage?: number; x?: number; y?: number; radius?: number }) {
+    const blastRadius = msg.radius ?? 20;
+    if (msg.x !== undefined && msg.y !== undefined) {
+      const ex = new Explosion(msg.x, msg.y, blastRadius);
+      this.world.addChild(ex);
+      this.activeAnims.push(ex);
+    }
+    this.camera?.shake(blastRadius);
+  }
 
   private onPhaseChange(phase: MatchPhase): void {
     if (phase !== "playing") this.trajectoryOverlay?.clear();
     if (phase === "lobby") this.roundInfo?.hide();
     if (phase === "playing") {
+      this.camera?.onTurnStart();
+      this.fitToLivingTanks();
       // Clear zones at the start of each round
       this.activeZones = [];
       this.terrain?.updateZones([]);
