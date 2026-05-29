@@ -383,6 +383,7 @@ export class MatchRoom extends Room<MatchState> {
       const currentId = this.state.currentTurnPlayerId;
       const tank = this.state.tanks.get(currentId);
       if (!tank || !tank.alive) return;
+      this.recorder.captureIntent(currentId, "fire", { angle: tank.angle, power: tank.power });
       handleFire(this.resolveCtx(), currentId, tank.angle, tank.power);
     }, this.state.turnTimerMs);
 
@@ -454,6 +455,7 @@ export class MatchRoom extends Room<MatchState> {
         }
       }
 
+      this.recorder.captureIntent(slot.sessionId, "fire", { angle: intent.angle, power: intent.power });
       handleFire(this.resolveCtx(), slot.sessionId, intent.angle, intent.power);
     }, profile.thinkDelayMs);
   }
@@ -508,7 +510,8 @@ export class MatchRoom extends Room<MatchState> {
     }
 
     try {
-      await this.allowReconnection(client, RECONNECT_GRACE_SEC);
+      const graceSec = Number(process.env.RECONNECT_GRACE_SEC ?? RECONNECT_GRACE_SEC);
+      await this.allowReconnection(client, graceSec);
       tank.connected = true;
     } catch {
       // Only promote to ghost AI during an active match.
@@ -524,6 +527,8 @@ export class MatchRoom extends Room<MatchState> {
       // Guard against duplicate ghost slots (defensive)
       if (!this.state.aiSlots.some(s => s.sessionId === client.sessionId)) {
         this.state.aiSlots.push(ghost);
+        // Mark the tank as "connected" so startNextRound treats the ghost as alive
+        tank.connected = true;
       }
     }
   }

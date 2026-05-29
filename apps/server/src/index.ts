@@ -37,6 +37,9 @@ const httpServer = createServer((req, res) => {
     }
     return;
   }
+  // Unmatched path
+  res.writeHead(404);
+  res.end();
 });
 
 async function main() {

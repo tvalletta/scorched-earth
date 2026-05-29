@@ -442,4 +442,27 @@ describe("MatchRoom — ghost AI on reconnect failure", () => {
 
     await a.leave();
   });
+
+  it("ghost AI tank remains alive at round 2 (tank.connected is true after promotion)", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "GHOST2", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "GHOST2", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    const bobSessionId = b.sessionId;
+
+    await b.leave(false);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // After grace expires and ghost is promoted, tank.connected must be true
+    // so startNextRound sets tank.alive = tank.connected = true
+    const ghostTank = a.state.tanks.get(bobSessionId);
+    expect(ghostTank).toBeDefined();
+    expect(ghostTank!.connected).toBe(true);
+
+    await a.leave();
+  });
 });
