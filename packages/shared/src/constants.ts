@@ -10,7 +10,7 @@ export const COLORS = [
 ] as const;
 export type TankColor = typeof COLORS[number];
 
-export const HATS = ["none", "chef", "top-hat", "beanie"] as const;
+export const HATS = ["none", "helm", "chef", "tophat", "beanie", "cowboy", "party", "viking", "santa"] as const;
 export type TankHat = typeof HATS[number];
 
 export const DEFAULT_MAX_ROUNDS = 5;
