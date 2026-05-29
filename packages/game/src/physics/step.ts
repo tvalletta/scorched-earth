@@ -1,4 +1,5 @@
 import type { LiveProjectile, StepInput, StepResult, StepEvent } from "../types";
+import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
 
 const WIND_ACCEL_SCALE = 5.0;
 const ROLLER_SPEED = 200; // px/s
@@ -42,7 +43,7 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
 
 export function stepProjectiles(input: StepInput): StepResult {
   const { projectiles, tanks, terrain, terrainWidth, terrainHeight, wind, gravity, dt, wallMode } = input;
-  const SOFT_BOTTOM = terrainHeight + 200;
+  const SOFT_BOTTOM = terrainHeight + PLAY_FLOOR_MARGIN;
 
   const survivors: LiveProjectile[] = [];
   const spawned: LiveProjectile[] = [];
@@ -122,7 +123,7 @@ export function stepProjectiles(input: StepInput): StepResult {
     }
 
     // 4. Out-of-bounds — top/soft-bottom always remove; left/right use wallMode
-    if (p.y < -200) {
+    if (p.y < PLAY_CEILING_Y) {
       events.push({ kind: "out-of-bounds", projectileId: p.id });
       continue;
     }

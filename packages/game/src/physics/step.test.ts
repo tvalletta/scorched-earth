@@ -69,7 +69,7 @@ describe("stepProjectiles — core", () => {
   });
 
   it("emits out-of-bounds when projectile falls below soft bottom", () => {
-    const p = makeProjectile({ x: 800, y: 1099, vy: 200 }); // SOFT_BOTTOM = 900+200=1100
+    const p = makeProjectile({ x: 800, y: 1399, vy: 200 }); // SOFT_BOTTOM = 900+500=1400
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: NO_TANKS });
     expect(result.events.some(e => e.kind === "out-of-bounds")).toBe(true);
   });
@@ -342,8 +342,8 @@ describe("stepProjectiles — wall modes", () => {
     expect(result.survivors).toHaveLength(0);
   });
 
-  it("none — top OOB (y < -200) emits out-of-bounds", () => {
-    const p = makeProjectile({ x: 800, y: -250, vx: 0, vy: -100 });
+  it("none — top OOB (y < -600) emits out-of-bounds", () => {
+    const p = makeProjectile({ x: 800, y: -650, vx: 0, vy: -100 });
     const result = stepProjectiles({ ...BASE, wallMode: "none", projectiles: [p] });
     expect(result.events.find((e) => e.kind === "out-of-bounds")).toBeDefined();
     expect(result.survivors).toHaveLength(0);

@@ -13,6 +13,12 @@ export type TankColor = typeof COLORS[number];
 export const HATS = ["none", "helm", "chef", "tophat", "beanie", "cowboy", "party", "viking", "santa"] as const;
 export type TankHat = typeof HATS[number];
 
+// Vertical projectile play bounds (relative to the terrain). Generous so high
+// lobs and low passes stay in play longer; the cosmetic floating-island
+// underside fills the space below the surface.
+export const PLAY_CEILING_Y = -600;       // remove projectiles that rise above this y
+export const PLAY_FLOOR_MARGIN = 500;     // soft bottom = terrainHeight + this
+
 export const DEFAULT_MAX_ROUNDS = 5;
 export const DEFAULT_STARTING_CASH = 10_000;
 export const ROUND_SUMMARY_DURATION_MS = 5_000;

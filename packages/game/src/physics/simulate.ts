@@ -1,5 +1,6 @@
 import type { SimInput, TrajectoryResult, TrajectorySample, SplitDef } from "../types";
 import { computeDamage } from "./damage";
+import { PLAY_FLOOR_MARGIN } from "@se/shared";
 
 const DT_MS = 1000 / 60;
 const MAX_DURATION_MS = 8000;
@@ -65,7 +66,7 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
     initialVelocity,
   } = input;
 
-  const SOFT_BOTTOM = terrainHeight + 200;
+  const SOFT_BOTTOM = terrainHeight + PLAY_FLOOR_MARGIN;
 
   let { vx, vy } = initialVelocity ?? initialVelocityFromAnglePower(angle, power);
   const dtSec = DT_MS / 1000;
