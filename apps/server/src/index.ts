@@ -4,13 +4,6 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import appConfig from "./appConfig.js";
 import { getReplay } from "./rooms/replayStore.js";
 
-// Sentry — only initialised when SENTRY_DSN is set (production)
-let Sentry: typeof import("@sentry/node") | null = null;
-if (process.env.SENTRY_DSN) {
-  Sentry = await import("@sentry/node");
-  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV ?? "development" });
-}
-
 const PORT = Number(process.env.PORT ?? 2567);
 
 const httpServer = createServer((req, res) => {
@@ -38,6 +31,17 @@ const httpServer = createServer((req, res) => {
 });
 
 async function main() {
+  // Sentry — only initialised when SENTRY_DSN is set (production)
+  let Sentry: typeof import("@sentry/node") | null = null;
+  if (process.env.SENTRY_DSN) {
+    try {
+      Sentry = await import("@sentry/node");
+      Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV ?? "development" });
+    } catch {
+      console.warn("[server] @sentry/node not available, skipping Sentry init");
+    }
+  }
+
   const gameServer = new Server({
     transport: new WebSocketTransport({ server: httpServer }),
   });
@@ -45,10 +49,11 @@ async function main() {
   await gameServer.listen(PORT, undefined, undefined, () => {
     console.log(`[server] listening on :${PORT}`);
   });
+
+  return Sentry;
 }
 
 main().catch((err) => {
-  Sentry?.captureException(err);
   console.error(err);
   process.exit(1);
 });

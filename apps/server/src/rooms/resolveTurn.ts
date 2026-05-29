@@ -19,7 +19,7 @@ import {
   type DamageEntry,
   type LiveProjectile,
 } from "@se/game";
-import { nextTurnPlayerId } from "./turnController";
+import { nextTurnPlayerId } from "./turnController.js";
 
 export interface ResolveContext {
   state: MatchState;

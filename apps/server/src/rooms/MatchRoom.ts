@@ -20,11 +20,11 @@ import {
   think, AI_PROFILES, shopForAi,
   type ThinkStateSnapshot,
 } from "@se/game";
-import { handleFire, type ResolveContext } from "./resolveTurn";
+import { handleFire, type ResolveContext } from "./resolveTurn.js";
 import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
   applyFallDamage, commitTurnEnd,
-} from "./tickLoop";
+} from "./tickLoop.js";
 import { ReplayRecorder } from "./ReplayRecorder.js";
 import { storeReplay } from "./replayStore.js";
 

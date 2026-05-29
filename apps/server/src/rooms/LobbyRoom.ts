@@ -1,6 +1,6 @@
 import { Room, type Client } from "colyseus";
 import { Schema, type } from "@colyseus/schema";
-import { generateRoomCode } from "../codeGen";
+import { generateRoomCode } from "../codeGen.js";
 
 class LobbyState extends Schema {
   @type("number") openMatchCount = 0;
