@@ -18,6 +18,8 @@ export class ShopScene {
   private readyLabel: HTMLDivElement | null = null;
   private rafId = 0;
   private deadline = 0;
+  private audioCtx?: AudioContext;
+  private lastBeepSec = -1;
   private localCash: number;
   private localInventory: Map<string, number>;
   private activeTab: string = "ALL";
@@ -92,12 +94,10 @@ export class ShopScene {
           </div>
 
           <div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-              <span style="color:#94a3b8;font-size:9px;">Shop closes in…</span>
-              <span id="shop-countdown" style="color:#ff8c00;font-weight:bold;font-size:11px;"></span>
-            </div>
-            <div style="background:#1a1535;border-radius:3px;height:3px;">
-              <div id="shop-bar" style="background:linear-gradient(90deg,#ff8c00,#ff4500);height:3px;width:100%;border-radius:3px;"></div>
+            <div style="text-align:center;color:#94a3b8;font:bold 8px sans-serif;letter-spacing:1.5px;margin-bottom:2px;">SHOP CLOSES IN</div>
+            <div id="shop-countdown" style="text-align:center;color:#ff8c00;font:900 34px 'Impact',fantasy;letter-spacing:2px;line-height:1;margin-bottom:6px;text-shadow:0 0 12px rgba(255,140,0,0.4);transition:transform 0.12s ease;">45</div>
+            <div style="background:#1a1535;border-radius:4px;height:6px;overflow:hidden;">
+              <div id="shop-bar" style="background:linear-gradient(90deg,#ff8c00,#ff4500);height:6px;width:100%;border-radius:4px;transition:width 0.2s linear;"></div>
             </div>
           </div>
         </div>
@@ -383,9 +383,33 @@ export class ShopScene {
   private tick(): void {
     const remaining = Math.max(0, this.deadline - Date.now());
     const pct = (remaining / SHOP_DURATION_MS) * 100;
-    const countdown = this.el.querySelector<HTMLSpanElement>("#shop-countdown");
-    if (countdown) countdown.textContent = Math.ceil(remaining / 1000) + "s";
-    if (this.barEl) this.barEl.style.width = pct + "%";
+    const secs = Math.ceil(remaining / 1000);
+    const countdown = this.el.querySelector<HTMLDivElement>("#shop-countdown");
+    if (countdown) {
+      countdown.textContent = String(secs);
+      const urgent = secs <= 5 && secs > 0;
+      countdown.style.color = urgent ? "#ff3b30" : "#ff8c00";
+      countdown.style.textShadow = urgent
+        ? "0 0 18px rgba(255,59,48,0.7)"
+        : "0 0 12px rgba(255,140,0,0.4)";
+      // Pulse on each new urgent second.
+      if (urgent && secs !== this.lastBeepSec) {
+        countdown.style.transform = "scale(1.25)";
+        setTimeout(() => { countdown.style.transform = "scale(1)"; }, 150);
+      }
+    }
+    if (this.barEl) {
+      this.barEl.style.width = pct + "%";
+      this.barEl.style.background = secs <= 5
+        ? "linear-gradient(90deg,#ff3b30,#ff6b00)"
+        : "linear-gradient(90deg,#ff8c00,#ff4500)";
+    }
+
+    // Beep once per second over the final 5 seconds.
+    if (secs <= 5 && secs > 0 && secs !== this.lastBeepSec) {
+      this.beep(880, 90);
+    }
+    this.lastBeepSec = secs;
 
     // Update ready count from server state
     const state = this.room.state;
@@ -398,8 +422,31 @@ export class ShopScene {
     }
   }
 
+  private beep(freq: number, durationMs: number): void {
+    try {
+      type ACtor = typeof AudioContext;
+      const Ctor: ACtor | undefined =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext?: ACtor }).webkitAudioContext;
+      if (!Ctor) return;
+      if (!this.audioCtx) this.audioCtx = new Ctor();
+      const ctx = this.audioCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + durationMs / 1000 + 0.02);
+    } catch { /* audio unavailable — silent */ }
+  }
+
   dispose(): void {
     cancelAnimationFrame(this.rafId);
+    this.audioCtx?.close().catch(() => {});
     this.el.remove();
   }
 }
