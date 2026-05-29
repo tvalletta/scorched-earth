@@ -1,6 +1,7 @@
 import { Application, Container } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT, ALL_TERRAIN_TYPES, COLORS, HATS } from "@se/shared";
 import { TerrainRenderer } from "./Terrain";
+import { SkyRenderer, timeOfDayFromSeed } from "./Sky";
 import { createTankView, type TankView } from "./Tank";
 import { ProjectileRenderer } from "./Projectile";
 import { Explosion } from "./Explosion";
@@ -39,6 +40,7 @@ function pick<T>(arr: readonly T[]): T {
 export class LobbyBattle {
   private container: Container;
   private world: Container;
+  private sky?: SkyRenderer;
   private terrain!: TerrainRenderer;
   private projectiles!: ProjectileRenderer;
   private tanks: BattleTank[] = [];
@@ -77,6 +79,12 @@ export class LobbyBattle {
     this.shot = null;
 
     const seed = "lobby-" + Math.floor(Math.random() * 1e9).toString(36);
+
+    // Sky is screen-space (behind the world), like MatchScene.
+    if (this.sky) { this.container.removeChild(this.sky); this.sky.destroy(); }
+    this.sky = new SkyRenderer(timeOfDayFromSeed(seed), this.app.screen.width, this.app.screen.height);
+    this.container.addChildAt(this.sky, 0);
+
     this.terrain = new TerrainRenderer(seed, pick(ALL_TERRAIN_TYPES));
     this.world.addChild(this.terrain);
     this.projectiles = new ProjectileRenderer(this.world);
@@ -115,6 +123,8 @@ export class LobbyBattle {
     if (this.paused) return;
     const dt = Math.min(deltaMS, 32) / 1000;
     const now = performance.now();
+
+    this.sky?.update(dt, 0); // subtle cloud drift
 
     // Fades
     if (this.fading === "in") {

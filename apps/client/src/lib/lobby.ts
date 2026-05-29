@@ -60,9 +60,9 @@ export function buildLobbyView(state: any, localSessionId: string): LobbyView {
       connected: t.connected !== false,
     });
   });
-  const ai: CombatantVM[] = Array.from((state.aiSlots ?? []) as Iterable<any>).map((s) => ({
+  const ai: CombatantVM[] = Array.from((state.aiSlots ?? []) as Iterable<any>).map((s, i) => ({
     sessionId: s.sessionId,
-    name: s.nickname || "AI",
+    name: s.nickname || `Bot ${i + 1}`,
     color: "white",
     hat: "none",
     kind: "ai" as const,
