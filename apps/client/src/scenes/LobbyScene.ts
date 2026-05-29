@@ -56,6 +56,10 @@ export class LobbyScene {
       this.panel.style.transform = "translate(-50%,-50%) scale(1)";
     });
 
+    // Expose the connected room (mirrors MatchScene's window.__room) for
+    // debugging and host-config tooling.
+    (window as unknown as { __room?: Room<MatchState> }).__room = room;
+
     this.bindStaticEvents();
     this.bindState();
     this.update();

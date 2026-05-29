@@ -7,6 +7,7 @@ import { simulateProjectile, WEAPON_REGISTRY } from "@se/game";
 import { TrajectoryOverlay } from "../render/TrajectoryOverlay";
 import { SkyRenderer, timeOfDayFromSeed } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
+import { CageRenderer } from "../render/Cage";
 import { createTankView } from "../render/Tank";
 import { ProjectileRenderer } from "../render/Projectile";
 import { PatriotRenderer } from "../render/Patriot";
@@ -49,6 +50,7 @@ export class MatchScene {
   protected aim!: AimControls;
   private weaponBar!: WeaponBar;
   private roundInfo!: RoundInfo;
+  private cage!: CageRenderer;
   private trajectoryOverlay!: TrajectoryOverlay;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
   private hudBar: HudBar | null = null;
@@ -239,6 +241,9 @@ export class MatchScene {
       this.terrain = t;
     };
 
+    this.cage = new CageRenderer();
+    this.world.addChild(this.cage);
+
     this.projectileRenderer = new ProjectileRenderer(this.world);
     this.patriotRenderer = new PatriotRenderer(this.world);
 
@@ -268,7 +273,8 @@ export class MatchScene {
 
     $(state).listen("wallMode", (mode) => {
       this.roundInfo.update(state.terrainType, mode);
-    });
+      this.cage.update(mode);
+    }, true);
     $(state).terrainOps.onAdd((op) => {
       const particles = this.terrain?.carve(op);
       if (particles) {
