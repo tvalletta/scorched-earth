@@ -12,7 +12,7 @@ const COLOR_CSS: Record<TankColorKey, string> = {
   green:  '#80b918',
   orange: '#f4a261',
   cyan:   '#00b4d8',
-  purple: '#b5179e',
+  magenta: '#b5179e',
   yellow: '#fca311',
   pink:   '#f48fb1',
   lime:   '#a6d96a',
@@ -31,7 +31,7 @@ const HAT_EMOJIS: Record<Hat, string> = {
   santa:  '🎅',
 };
 
-const ALL_COLORS: TankColorKey[] = ['red','blue','green','orange','cyan','purple','yellow','pink','lime','white'];
+const ALL_COLORS: TankColorKey[] = ['red','blue','green','orange','cyan','magenta','yellow','pink','lime','white'];
 const ALL_HATS: Hat[] = ['none','helm','chef','tophat','beanie','cowboy','party','viking','santa'];
 
 export class LobbyScene {

@@ -140,6 +140,7 @@ export class HudBar {
     fireBtn.addEventListener('mouseup', () => {
       fireBtn.style.transform = '';
       fireBtn.style.boxShadow = '0 4px 0 #7f2d00';
+      if (fireBtn.disabled) return;
       this.room.send('fire', { angle: this.currentAngle, power: this.currentPower });
     });
     fireBtn.addEventListener('mouseleave', () => {
