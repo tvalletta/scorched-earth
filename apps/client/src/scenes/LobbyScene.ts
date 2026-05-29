@@ -239,12 +239,14 @@ export class LobbyScene {
     $(state).listen("hostId", rerender);
     $(state).listen("maxRounds", rerender);
     $(state).listen("loadoutId", rerender);
+    // Immediate: if we join a room that has already left the lobby (mid-match),
+    // go straight to the match (as a spectator) instead of showing the panel.
     $(state).listen("phase", (phase: MatchPhase) => {
-      if (phase === "playing" && !this.transitioned) {
+      if (phase !== "lobby" && !this.transitioned) {
         this.transitioned = true;
         this.onPlaying();
       }
-    });
+    }, true);
   }
 
   // ── Dynamic update (no full innerHTML rebuild → input focus preserved) ──

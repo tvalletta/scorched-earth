@@ -9,22 +9,8 @@ export class AimControls {
   private powerLbl!: HTMLSpanElement;
   private phaseEl!: HTMLDivElement;
   private fireBtn!: HTMLButtonElement;
-  private startBtn!: HTMLButtonElement;
   private angleSlider!: HTMLInputElement;
   private powerSlider!: HTMLInputElement;
-  private loadoutSection!: HTMLDivElement;
-  private loadoutBtns: HTMLButtonElement[] = [];
-  private loadoutDisplay!: HTMLDivElement;
-  private maxRoundsSection!: HTMLDivElement;
-  private maxRoundsInput!: HTMLInputElement;
-  private inviteSection!: HTMLDivElement;
-  private poolSection!: HTMLDivElement;
-  private terrainPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
-  private wallPoolChecks: Array<{ id: string; el: HTMLInputElement }> = [];
-
-  private aiSection!: HTMLDivElement;
-  private aiSlotsContainer!: HTMLDivElement;
-  private aiSlotEls: Array<{ row: HTMLDivElement; sessionId: string }> = [];
 
   private angle = 90;
   private power = 500;
@@ -137,22 +123,6 @@ export class AimControls {
         "text-transform:uppercase;text-align:center;min-height:14px;",
     );
 
-    this.startBtn = document.createElement("button");
-    applyStyle(this.startBtn, {
-      display: "none",
-      padding: "10px 20px",
-      background: "linear-gradient(135deg,#1e40af,#2563eb)",
-      color: "#fff",
-      border: "none",
-      borderRadius: "6px",
-      cursor: "pointer",
-      font: "bold 13px 'Courier New',monospace",
-      letterSpacing: "2px",
-      boxShadow: "0 0 18px rgba(37,99,235,0.65)",
-    });
-    this.startBtn.textContent = "▶ START";
-    this.startBtn.onclick = () => this.room.send("ready", {});
-
     this.fireBtn = document.createElement("button");
     applyStyle(this.fireBtn, {
       width: "96px",
@@ -182,156 +152,7 @@ export class AimControls {
         "0 0 28px rgba(220,38,38,0.75),inset 0 2px 0 rgba(255,255,255,0.12)";
     });
 
-    actionSection.append(this.phaseEl, this.startBtn, this.fireBtn);
-
-    // Loadout section (host only, lobby phase)
-    this.loadoutSection = mkDiv(
-      "pointer-events:auto;display:none;flex-direction:column;align-items:center;gap:4px;",
-    );
-    const loadoutTitle = mkLabel("LOADOUT");
-    const loadoutLabels = ["STARTER", "STANDARD", "BONANZA"] as const;
-    this.loadoutBtns = (["starter", "standard", "bonanza"] as const).map((id, i) => {
-      const btn = document.createElement("button");
-      btn.textContent = loadoutLabels[i] ?? "";
-      btn.style.cssText =
-        "padding:3px 8px;font:bold 9px 'Courier New',monospace;border-radius:4px;" +
-        "border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);" +
-        "color:#94a3b8;cursor:pointer;";
-      btn.dataset.loadoutId = id;
-      btn.onclick = () => {
-        this.room.send("configure", { loadoutId: id });
-        this.refreshLoadoutBtns(id);
-      };
-      return btn;
-    });
-    this.loadoutSection.append(loadoutTitle, ...this.loadoutBtns);
-
-    // ── Max rounds section (host-only lobby) ──────────────────────────────
-    this.maxRoundsSection = mkDiv("pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:4px;");
-    this.maxRoundsInput = document.createElement("input");
-    this.maxRoundsInput.type = "number";
-    this.maxRoundsInput.min = "1";
-    this.maxRoundsInput.max = "20";
-    this.maxRoundsInput.value = "5";
-    this.maxRoundsInput.style.cssText =
-      "width:52px;text-align:center;padding:4px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);" +
-      "background:rgba(15,23,42,0.9);color:#e0e0e0;font:bold 13px 'Courier New',monospace;";
-    this.maxRoundsInput.onchange = () => {
-      const v = Math.max(1, Math.min(20, parseInt(this.maxRoundsInput.value, 10) || 5));
-      this.maxRoundsInput.value = String(v);
-      this.room.send("configure", { maxRounds: v });
-    };
-    this.maxRoundsSection.append(
-      mkLabel("ROUNDS"),
-      this.maxRoundsInput,
-    );
-
-    // Loadout display (non-host, lobby phase)
-    this.loadoutDisplay = mkDiv(
-      "color:#94a3b8;font:9px 'Courier New',monospace;text-align:center;display:none;",
-    );
-
-    // Invite link (host only, lobby phase)
-    this.inviteSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;align-items:center;gap:4px;");
-    const codeMatch = location.pathname.match(/^\/([A-Z0-9]{6})$/i);
-    const roomCode = codeMatch ? codeMatch[1].toUpperCase() : "";
-    const inviteUrl = `${location.origin}/${roomCode}`;
-    const inviteUrlEl = mkDiv("color:#93c5fd;font:10px 'Courier New',monospace;letter-spacing:1px;text-align:center;");
-    inviteUrlEl.textContent = inviteUrl;
-    const copyBtn = document.createElement("button");
-    copyBtn.textContent = "📋 Copy link";
-    copyBtn.style.cssText =
-      "padding:3px 10px;font:bold 9px 'Courier New',monospace;border-radius:4px;" +
-      "border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);" +
-      "color:#94a3b8;cursor:pointer;";
-    copyBtn.onclick = () => {
-      navigator.clipboard.writeText(inviteUrl).then(() => {
-        copyBtn.textContent = "✓ Copied!";
-        copyBtn.style.color = "#4ade80";
-        setTimeout(() => { copyBtn.textContent = "📋 Copy link"; copyBtn.style.color = "#94a3b8"; }, 2000);
-      });
-    };
-    this.inviteSection.append(mkLabel("INVITE"), inviteUrlEl, copyBtn);
-
-    // ── Pool pickers (host-only, lobby) ───────────────────────────────────
-    this.poolSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;align-items:flex-start;gap:6px;");
-
-    const terrainTypes = [
-      { id: "mountains", label: "Mountains" }, { id: "hills", label: "Hills" },
-      { id: "valleys", label: "Valleys" }, { id: "cliffs", label: "Cliffs" },
-      { id: "crater", label: "Crater" }, { id: "sky-high", label: "Sky High" },
-      { id: "plateau", label: "Plateau" }, { id: "flat", label: "Flat" },
-      { id: "random", label: "Random" },
-    ];
-    const wallModes = [
-      { id: "none", label: "No Walls" }, { id: "wrap", label: "Wrap" },
-      { id: "reflect", label: "Reflect" }, { id: "absorb", label: "Absorb" },
-    ];
-
-    const terrainGroup = mkDiv("display:flex;flex-direction:column;gap:3px;");
-    terrainGroup.appendChild(mkLabel("TERRAIN TYPES"));
-    const terrainRow = mkDiv("display:flex;flex-wrap:wrap;gap:4px;");
-    for (const tt of terrainTypes) {
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = true;
-      cb.id = "pool-t-" + tt.id;
-      cb.style.cssText = "accent-color:#3b82f6;";
-      const lbl = document.createElement("label");
-      lbl.htmlFor = cb.id;
-      lbl.textContent = tt.label;
-      lbl.style.cssText = "color:#94a3b8;font:9px 'Courier New',monospace;cursor:pointer;";
-      const wrap = mkDiv("display:flex;align-items:center;gap:2px;");
-      wrap.append(cb, lbl);
-      terrainRow.appendChild(wrap);
-      cb.onchange = () => this.sendPoolUpdate();
-      this.terrainPoolChecks.push({ id: tt.id, el: cb });
-    }
-    terrainGroup.appendChild(terrainRow);
-
-    const wallGroup = mkDiv("display:flex;flex-direction:column;gap:3px;");
-    wallGroup.appendChild(mkLabel("WALL MODES"));
-    const wallRow = mkDiv("display:flex;gap:8px;");
-    for (const wm of wallModes) {
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = true;
-      cb.id = "pool-w-" + wm.id;
-      cb.style.cssText = "accent-color:#3b82f6;";
-      const lbl = document.createElement("label");
-      lbl.htmlFor = cb.id;
-      lbl.textContent = wm.label;
-      lbl.style.cssText = "color:#94a3b8;font:9px 'Courier New',monospace;cursor:pointer;";
-      const wrap = mkDiv("display:flex;align-items:center;gap:2px;");
-      wrap.append(cb, lbl);
-      wallRow.appendChild(wrap);
-      cb.onchange = () => this.sendPoolUpdate();
-      this.wallPoolChecks.push({ id: wm.id, el: cb });
-    }
-    wallGroup.appendChild(wallRow);
-
-    this.poolSection.append(terrainGroup, wallGroup);
-
-    // ── AI opponents section (host-only, lobby) ───────────────────────────
-    this.aiSection = mkDiv("pointer-events:auto;display:none;flex-direction:column;gap:6px;");
-    const aiTitle = mkLabel("AI OPPONENTS");
-    const addAiRow = mkDiv("display:flex;gap:6px;align-items:center;");
-    const diffSelect = document.createElement("select");
-    diffSelect.style.cssText = "background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:4px;font:11px 'Courier New',monospace;padding:2px 4px;";
-    for (const diff of ["moron", "shooter", "pyro", "cyborg", "bouncer"]) {
-      const opt = document.createElement("option");
-      opt.value = diff;
-      opt.textContent = diff.charAt(0).toUpperCase() + diff.slice(1);
-      diffSelect.appendChild(opt);
-    }
-    diffSelect.value = "shooter";
-    const addAiBtn = document.createElement("button");
-    addAiBtn.textContent = "+ Add AI";
-    addAiBtn.style.cssText = "background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid #3b82f6;border-radius:4px;font:10px 'Courier New',monospace;padding:3px 8px;cursor:pointer;pointer-events:auto;";
-    addAiBtn.onclick = () => this.room.send("add-ai", { difficulty: diffSelect.value });
-    addAiRow.append(diffSelect, addAiBtn);
-    this.aiSlotsContainer = mkDiv("display:flex;flex-direction:column;gap:3px;");
-    this.aiSection.append(aiTitle, addAiRow, this.aiSlotsContainer);
+    actionSection.append(this.phaseEl, this.fireBtn);
 
     // ── Drive HUD ──────────────────────────────────────────────────────────
     this.driveHUD = mkDiv(
@@ -355,123 +176,27 @@ export class AimControls {
     this.driveHUD.append(driveTitle, this.fuelLabel, fuelTrack);
     document.getElementById("ui")!.appendChild(this.driveHUD);
 
-    this.el.append(angleSection, powerSection, actionSection, this.loadoutSection, this.maxRoundsSection, this.poolSection, this.aiSection, this.inviteSection, this.loadoutDisplay);
+    this.el.append(angleSection, powerSection, actionSection);
   }
 
   private refreshChrome() {
+    // The lobby/waiting-room (identity, AI, loadout, rounds, invite, start) is
+    // owned by LobbyScene. MatchScene + AimControls only exist once the match
+    // is playing, so this manages the in-match action chrome only.
     const state = this.room.state;
-    const isHost = state.hostId === this.room.sessionId;
-    const inLobby = state.phase === "lobby";
     const isMyTurn =
       state.phase === "playing" && state.currentTurnPlayerId === this.room.sessionId;
 
-    this.startBtn.style.display = inLobby && isHost ? "block" : "none";
-    this.fireBtn.style.display = inLobby ? "none" : "block";
+    this.fireBtn.style.display = "block";
     this.fireBtn.style.opacity = isMyTurn ? "1" : "0.38";
-    (this.fireBtn as HTMLButtonElement).disabled = !isMyTurn;
+    this.fireBtn.disabled = !isMyTurn;
 
-    if (inLobby) {
-      this.phaseEl.textContent = isHost ? "WAITING FOR PLAYERS" : "WAITING FOR HOST";
-      this.loadoutSection.style.display = isHost ? "flex" : "none";
-      this.maxRoundsSection.style.display = isHost ? "flex" : "none";
-      this.inviteSection.style.display = isHost ? "flex" : "none";
-      this.loadoutDisplay.style.display = !isHost ? "block" : "none";
-      if (isHost) this.refreshLoadoutBtns(this.room.state.loadoutId);
-      if (!isHost) {
-        const labels: Record<string, string> = { starter: "STARTER", standard: "STANDARD", bonanza: "BONANZA" };
-        this.loadoutDisplay.textContent = "LOADOUT: " + (labels[this.room.state.loadoutId] ?? this.room.state.loadoutId.toUpperCase());
-      }
-      if (isHost) {
-        for (const c of [...this.terrainPoolChecks, ...this.wallPoolChecks]) {
-          c.el.disabled = false;
-        }
-        this.poolSection.style.display = "flex";
-      } else {
-        const tPool = this.room.state.terrainTypePool;
-        const wPool = this.room.state.wallModePool;
-        for (const c of this.terrainPoolChecks) {
-          c.el.checked = tPool === "all" || tPool.split(",").includes(c.id);
-          c.el.disabled = true;
-        }
-        for (const c of this.wallPoolChecks) {
-          c.el.checked = wPool === "all" || wPool.split(",").includes(c.id);
-          c.el.disabled = true;
-        }
-        this.poolSection.style.display = "flex";
-      }
-      this.aiSection.style.display = "flex";
-      this.refreshAiSlots();
+    if (state.phase === "playing") {
+      const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
+      this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
     } else {
-      this.loadoutSection.style.display = "none";
-      this.maxRoundsSection.style.display = "none";
-      this.inviteSection.style.display = "none";
-      this.loadoutDisplay.style.display = "none";
-      this.poolSection.style.display = "none";
-      this.aiSection.style.display = "none";
-      if (state.phase === "playing") {
-        const nick = state.tanks.get(state.currentTurnPlayerId)?.nickname?.toUpperCase() ?? "?";
-        this.phaseEl.textContent = isMyTurn ? "YOUR TURN" : `WAITING — ${nick}`;
-      } else {
-        this.phaseEl.textContent = state.phase.toUpperCase();
-      }
+      this.phaseEl.textContent = state.phase.toUpperCase();
     }
-  }
-
-  private refreshLoadoutBtns(activeId: string): void {
-    for (const btn of this.loadoutBtns) {
-      const active = (btn.dataset.loadoutId ?? "") === activeId;
-      btn.style.background = active ? "rgba(37,99,235,0.6)" : "rgba(0,0,0,0.3)";
-      btn.style.color = active ? "#93c5fd" : "#94a3b8";
-      btn.style.borderColor = active ? "#3b82f6" : "rgba(255,255,255,0.2)";
-    }
-  }
-
-  private refreshAiSlots(): void {
-    const state = this.room.state;
-    const isHost = state.hostId === this.room.sessionId;
-    const slots = Array.from(state.aiSlots);
-    // Remove old rows
-    while (this.aiSlotsContainer.firstChild) {
-      this.aiSlotsContainer.removeChild(this.aiSlotsContainer.firstChild);
-    }
-    this.aiSlotEls = [];
-    for (const slot of slots) {
-      const row = mkDiv("display:flex;align-items:center;gap:4px;");
-      const label = mkDiv("color:#f59e0b;font:10px 'Courier New',monospace;flex:1;");
-      label.textContent = "🤖 " + slot.sessionId + " — " + slot.difficulty;
-      row.appendChild(label);
-      if (isHost) {
-        const sel = document.createElement("select");
-        sel.style.cssText = "background:#161b22;color:#e6edf3;border:1px solid #30363d;border-radius:3px;font:9px 'Courier New',monospace;padding:1px 3px;";
-        for (const diff of ["moron", "shooter", "pyro", "cyborg", "bouncer"]) {
-          const opt = document.createElement("option");
-          opt.value = diff;
-          opt.textContent = diff;
-          sel.appendChild(opt);
-        }
-        sel.value = slot.difficulty;
-        sel.onchange = () => this.room.send("set-ai-difficulty", { sessionId: slot.sessionId, difficulty: sel.value });
-        const removeBtn = document.createElement("button");
-        removeBtn.textContent = "✕";
-        removeBtn.style.cssText = "background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;border-radius:3px;font:9px monospace;padding:1px 5px;cursor:pointer;pointer-events:auto;";
-        removeBtn.onclick = () => this.room.send("remove-ai", { sessionId: slot.sessionId });
-        row.append(sel, removeBtn);
-      }
-      this.aiSlotsContainer.appendChild(row);
-      this.aiSlotEls.push({ row, sessionId: slot.sessionId });
-    }
-  }
-
-  private sendPoolUpdate(): void {
-    const terrainTypePool = this.terrainPoolChecks
-      .filter((c) => c.el.checked)
-      .map((c) => c.id)
-      .join(",") || "all";
-    const wallModePool = this.wallPoolChecks
-      .filter((c) => c.el.checked)
-      .map((c) => c.id)
-      .join(",") || "all";
-    this.room.send("configure", { terrainTypePool, wallModePool });
   }
 
   private setAngle(v: number) {
