@@ -19,7 +19,9 @@ export function randomSlots(
     }
   }
 
-  // Fallback: even spacing (guarantees count is met)
+  // Fallback: even spacing when random placement is geometrically impossible.
+  // At typical max player counts (≤10) with TERRAIN_WIDTH=1600, spacing ≈ 145px > minBuffer=120.
+  // For extreme counts, spacing may be less than minBuffer — acceptable since no valid solution exists.
   if (slots.length < count) {
     const spacing = TERRAIN_WIDTH / (count + 1);
     return Array.from({ length: count }, (_, i) => Math.round(spacing * (i + 1)));
