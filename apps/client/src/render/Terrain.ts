@@ -81,13 +81,10 @@ export class TerrainRenderer extends Container {
     g.clear();
     const h = this.heightmap;
 
-    // Layer 1 — Bedrock (full terrain shape, darkest)
-    g.moveTo(0, h[0] ?? 0);
-    for (let x = 1; x < TERRAIN_WIDTH; x++) g.lineTo(x, h[x] ?? 0);
-    g.lineTo(TERRAIN_WIDTH, TERRAIN_HEIGHT);
-    g.lineTo(0, TERRAIN_HEIGHT);
-    g.closePath();
-    g.fill(0x2a1a0a);
+    // Layer 1 — Floating-island underside (replaces a flat-bottomed block):
+    // a tapering rocky mass with stalactites, so the world reads as an
+    // Avatar-style floating island rather than a slab hanging in space.
+    this.drawUnderside(g, h);
 
     // Layer 2 — Dirt band (surface to surface+200, on top of bedrock)
     this.drawBand(g, h, 0, 200, 0x5c3a1e);
@@ -113,6 +110,77 @@ export class TerrainRenderer extends Container {
 
     // Layer 6 — Rock pebbles (deterministic from terrain seed)
     this.drawPebbles(g, h);
+  }
+
+  /**
+   * Draw the floating-island underside: a smooth rocky mass that hangs below
+   * the surface (deeper toward the middle), darkening toward the bottom, with
+   * stalactite spikes and a faint rim light. Purely cosmetic — physics only
+   * ever consults the top surface heightmap.
+   */
+  private drawUnderside(g: Graphics, h: Int16Array): void {
+    const W = TERRAIN_WIDTH;
+
+    // Average surface height → a smooth reference so the underside doesn't
+    // copy every surface bump.
+    let sum = 0;
+    for (let x = 0; x < W; x++) sum += h[x] ?? 0;
+    const avgSurface = sum / W;
+
+    // Seeded phase so each map's underside silhouette differs.
+    let s = 0;
+    for (let i = 0; i < this.seed.length; i++) s = (Math.imul(31, s) + this.seed.charCodeAt(i)) >>> 0;
+    const phase = (s % 1000) / 1000 * Math.PI * 2;
+
+    const MIN_THICKNESS = 170;
+    const EDGE_DEPTH = 240;
+    const CENTER_EXTRA = 340;
+
+    const bottom = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+      const t = x / (W - 1);
+      const bell = Math.sin(Math.PI * t); // 0 at edges → 1 at centre
+      const noise =
+        24 * Math.sin(t * Math.PI * 6 + phase) +
+        14 * Math.sin(t * Math.PI * 13 + phase * 1.7) +
+        8 * Math.sin(t * Math.PI * 23 + phase * 0.5);
+      const smooth = avgSurface + EDGE_DEPTH + CENTER_EXTRA * bell + noise;
+      bottom[x] = Math.max((h[x] ?? 0) + MIN_THICKNESS, smooth);
+    }
+
+    // Body — medium rock from the surface down to the underside contour.
+    g.moveTo(0, h[0] ?? 0);
+    for (let x = 1; x < W; x++) g.lineTo(x, h[x] ?? 0);
+    for (let x = W - 1; x >= 0; x--) g.lineTo(x, bottom[x]!);
+    g.closePath();
+    g.fill(0x3a2614);
+
+    // Shadow — darker mass over the lower ~half for depth.
+    const shadowTop = avgSurface + EDGE_DEPTH + 110;
+    g.moveTo(0, Math.max(shadowTop, (h[0] ?? 0) + MIN_THICKNESS));
+    for (let x = 1; x < W; x++) g.lineTo(x, Math.max(shadowTop + 18 * Math.sin((x / (W - 1)) * Math.PI), (h[x] ?? 0) + MIN_THICKNESS));
+    for (let x = W - 1; x >= 0; x--) g.lineTo(x, bottom[x]!);
+    g.closePath();
+    g.fill({ color: 0x1c1208, alpha: 0.6 });
+
+    // Stalactites hanging from the deepest (central) region.
+    const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 0x100000000; };
+    for (let i = 0; i < 9; i++) {
+      const sx = Math.floor((0.12 + rng() * 0.76) * W);
+      const by = bottom[sx]!;
+      const len = 55 + rng() * 120;
+      const wHalf = 10 + rng() * 14;
+      g.moveTo(sx - wHalf, by - 6);
+      g.lineTo(sx + wHalf, by - 6);
+      g.lineTo(sx, by + len);
+      g.closePath();
+      g.fill(0x1c1208);
+    }
+
+    // Rim light along the underside silhouette.
+    g.moveTo(0, bottom[0]!);
+    for (let x = 1; x < W; x += 4) g.lineTo(x, bottom[x]!);
+    g.stroke({ color: 0x6b4a25, width: 2, alpha: 0.4 });
   }
 
   private drawBand(
