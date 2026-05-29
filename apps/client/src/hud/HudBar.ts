@@ -10,6 +10,10 @@ export class HudBar {
   private weaponKeys: string[];
   private carouselCenter = 0;
   private localInventory: Map<string, number> = new Map();
+  private onMouseMoveDial: (e: MouseEvent) => void = () => {};
+  private onMouseMovePower: (e: MouseEvent) => void = () => {};
+  private onMouseUpDial: () => void = () => {};
+  private onMouseUpPower: () => void = () => {};
 
   constructor(private room: Room<MatchState>) {
     this.weaponKeys = Array.from(WEAPON_REGISTRY.keys());
@@ -80,6 +84,10 @@ export class HudBar {
 
   destroy(): void {
     window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('mousemove', this.onMouseMoveDial);
+    window.removeEventListener('mouseup', this.onMouseUpDial);
+    window.removeEventListener('mousemove', this.onMouseMovePower);
+    window.removeEventListener('mouseup', this.onMouseUpPower);
     this.el.remove();
   }
 
@@ -145,7 +153,7 @@ export class HudBar {
     const dial = this.el.querySelector<HTMLDivElement>('#hud-dial')!;
     let draggingDial = false;
     dial.addEventListener('mousedown', (e) => { e.stopPropagation(); draggingDial = true; });
-    window.addEventListener('mousemove', (e: MouseEvent) => {
+    this.onMouseMoveDial = (e: MouseEvent) => {
       if (!draggingDial) return;
       const rect = dial.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
@@ -157,20 +165,24 @@ export class HudBar {
       // screen 0° (right) → game 180°; screen ±180° (left) → game 0°; screen -90° (up) → game 90°
       const gameAngle = 180 - ((screenAngle + 360) % 360);
       this.setAngle(Math.max(0, Math.min(180, gameAngle)));
-    });
-    window.addEventListener('mouseup', () => { draggingDial = false; });
+    };
+    this.onMouseUpDial = () => { draggingDial = false; };
+    window.addEventListener('mousemove', this.onMouseMoveDial);
+    window.addEventListener('mouseup', this.onMouseUpDial);
 
     // Power bar drag
     const powerTrack = this.el.querySelector<HTMLDivElement>('#hud-power-track')!;
     let draggingPower = false;
     powerTrack.addEventListener('mousedown', (e) => { e.stopPropagation(); draggingPower = true; });
-    window.addEventListener('mousemove', (e: MouseEvent) => {
+    this.onMouseMovePower = (e: MouseEvent) => {
       if (!draggingPower) return;
       const rect = powerTrack.getBoundingClientRect();
       const fraction = 1 - (e.clientY - rect.top) / rect.height;
       this.setPower(Math.round(Math.max(0, Math.min(1000, fraction * 1000))));
-    });
-    window.addEventListener('mouseup', () => { draggingPower = false; });
+    };
+    this.onMouseUpPower = () => { draggingPower = false; };
+    window.addEventListener('mousemove', this.onMouseMovePower);
+    window.addEventListener('mouseup', this.onMouseUpPower);
   }
 
   private readonly onKeyDown = (e: KeyboardEvent) => {
