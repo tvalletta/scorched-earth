@@ -1,0 +1,13 @@
+{
+  "name": "@se/loadtest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "colyseus-loadtest src/index.ts --endpoint ws://localhost:2567 --room match --numClients 200 --delay 50"
+  },
+  "dependencies": {
+    "@colyseus/loadtest": "^0.17.0",
+    "@colyseus/sdk": "^0.17.0"
+  }
+}

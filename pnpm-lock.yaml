@@ -102,6 +102,15 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@22.19.19)
 
+  packages/loadtest:
+    dependencies:
+      '@colyseus/loadtest':
+        specifier: ^0.17.0
+        version: 0.17.8(@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0))
+      '@colyseus/sdk':
+        specifier: ^0.17.0
+        version: 0.17.42(@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0))(typescript@5.9.3)
+
   packages/shared:
     dependencies:
       '@colyseus/schema':
@@ -119,12 +128,26 @@ importers:
 
 packages:
 
+  '@better-auth/utils@0.3.1':
+    resolution: {integrity: sha512-+CGp4UmZSUrHHnpHhLPYu6cV+wSUSvVbZbNykxhUDocpVNTo9uFFxw/NqJlh1iC4wQ9HKKWGCKuZ5wUgS0v6Kg==}
+
+  '@better-fetch/fetch@1.1.21':
+    resolution: {integrity: sha512-/ImESw0sskqlVR94jB+5+Pxjf+xBwDZF/N5+y2/q4EqD7IARUTSpPfIo8uf39SYpCxyOCtbyYpUrZ3F/k0zT4A==}
+
   '@colyseus/auth@0.16.6':
     resolution: {integrity: sha512-gfxnTOhfmd1O2OnCOw2S8hFyGNWib2MJzD3EIU0Q43eby2VXoKtGpE3llu2cqgmgJ1ShV79jk2RnPt5LEo89hw==}
     engines: {node: '>= 18.x'}
     peerDependencies:
       '@colyseus/core': 0.16.x
       express: '>=4.16.0'
+
+  '@colyseus/better-call@1.3.3':
+    resolution: {integrity: sha512-ISJtvMx6fV0ABPQt/ljzPc4O2+mFvyVKeHKX02qBSWKR0VXOXzniAC64POea4pp8DxZTbgHoSPpXjdnNpUkeLw==}
+    peerDependencies:
+      zod: ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@colyseus/clock@1.0.1':
     resolution: {integrity: sha512-HLovmkerzZ7aEckKuHFnql+sXCChi37WRc88duWxufiH5wVMNomBjlqQYVxaORgA+4vLIRd0/jabu6DAbkSfaA==}
@@ -143,6 +166,10 @@ packages:
     resolution: {integrity: sha512-JvABMZzPLiyrUsVj3ElXGORRDTu+NKzXHWd1uV1R1SThAKMm06cVW6bOyADARD65bs8JJoHNNbUkW8KoRvRDzA==}
     engines: {node: '>=10'}
 
+  '@colyseus/loadtest@0.17.8':
+    resolution: {integrity: sha512-l17I8wxKu6faWGi8WcGT9DiSfQ64idJ4pSd1NKHdFAfJPbawL6RnHXuwJixG6CW1XQ7W4HtSsK1n70T4QC1UUA==}
+    hasBin: true
+
   '@colyseus/msgpackr@1.11.3':
     resolution: {integrity: sha512-P86w/FrZWUaV7StxI7WuNg3wFlUrROSiBOrF378wyOgxS5+etcxUQMPe0OJZDEx+QUdu7QOPzsqE0Ziqwpjnug==}
 
@@ -155,6 +182,25 @@ packages:
   '@colyseus/schema@3.0.76':
     resolution: {integrity: sha512-i+ceBZyhB7lTn5+BoG/xxYfzW4dKKyLOywsGKVgXHe9fD905AS/Lk180jd1bICEJhebGeiRXEQ2YUPl/xwFg2g==}
     hasBin: true
+
+  '@colyseus/schema@4.0.25':
+    resolution: {integrity: sha512-WW+zqfYv1keWewbXmIxnElzfHruqnif4RPHfxTtXqPUVTnd/Jm7MOV2O2O1sBrMZmFmhKusIHxzSF+xAUcSv3g==}
+    hasBin: true
+    peerDependencies:
+      typescript: ^5.0.0 || ^6.0.0
+
+  '@colyseus/sdk@0.17.42':
+    resolution: {integrity: sha512-/gxRldfiDQhVbecvsA9S1Wq2GhFQeLFY+AvROO+Ch5JG9L9/yp7twWo/jXhPUI5aLQ3J3PLqQKASuHll8KTokA==}
+    engines: {node: '>= 12.x'}
+    peerDependencies:
+      '@colyseus/core': 0.17.x
+    peerDependenciesMeta:
+      '@colyseus/core':
+        optional: true
+
+  '@colyseus/shared-types@0.17.6':
+    resolution: {integrity: sha512-GeBB9uNrjG+BWa4/LAVyAHj65ll0WKLNjWDieKiphhmbfGXgQOcmvWVxKQc8KKu+n7f5Hmrwr6IEk9Dm2Y0Qgw==}
+    engines: {node: '>= 22.x'}
 
   '@colyseus/testing@0.16.3':
     resolution: {integrity: sha512-RzcsKBUngjSPVL1EgGPyMZ2bs3vqh3PjA449QPfJcakDVDSFrPgNRMS/9/jxx7O30TybsQoZszyTKkH9FTnjGg==}
@@ -735,6 +781,9 @@ packages:
   '@sinclair/typebox@0.27.10':
     resolution: {integrity: sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA==}
 
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
   '@types/earcut@3.0.0':
     resolution: {integrity: sha512-k/9fOUGO39yd2sCjrbAJvGDEQvRwRnQIZlBz43roGwUZo5SHAmyVvSFyaVVZkicRVCaDXPKlbxrUcBuJoSWunQ==}
 
@@ -815,6 +864,11 @@ packages:
 
   async@2.6.4:
     resolution: {integrity: sha512-mzo5dfJYwAn29PeiJ0zvwTo04zj8HDJj0Mn8TD7sno7q12prdbnasKJHhkm2c1LgrhlJ0teaea8860oxi51mGA==}
+
+  blessed@0.1.81:
+    resolution: {integrity: sha512-LoF5gae+hlmfORcG1M5+5XZi4LBmvlXTzwJWzUlPryN/SJdSflZvROM2TwkT0GMpq7oqT48NRd4GS7BiVBc5OQ==}
+    engines: {node: '>= 0.8.0'}
+    hasBin: true
 
   bn.js@4.12.3:
     resolution: {integrity: sha512-fGTi3gxV/23FTYdAoUtLYp6qySe2KE3teyZitipKNRuVYcBkoP/bB3guXN/XVKUe9mxCHXnc9C4ocyz8OmgN0g==}
@@ -1311,6 +1365,9 @@ packages:
   minimalistic-crypto-utils@1.0.1:
     resolution: {integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==}
 
+  minimist@1.2.8:
+    resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
@@ -1502,6 +1559,9 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
+  rou3@0.7.12:
+    resolution: {integrity: sha512-iFE4hLDuloSWcD7mjdCDhx2bKcIsYbtOTpfH5MHHLSKMOUyjqQXTeZVa289uuwEGEKFoE/BAPbhaU4B774nceg==}
+
   router@2.2.0:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
@@ -1537,6 +1597,9 @@ packages:
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
+
+  set-cookie-parser@3.1.0:
+    resolution: {integrity: sha512-kjnC1DXBHcxaOaOXBHBeRtltsDG2nUiUni+jP92M9gYdW12rsmx92UsfpH7o5tDRs7I1ZZPSQJQGv3UaRfCiuw==}
 
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
@@ -1782,6 +1845,10 @@ packages:
 
 snapshots:
 
+  '@better-auth/utils@0.3.1': {}
+
+  '@better-fetch/fetch@1.1.21': {}
+
   '@colyseus/auth@0.16.6(@colyseus/core@0.16.24(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))(express@5.2.1)':
     dependencies:
       '@colyseus/core': 0.16.24(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
@@ -1794,6 +1861,13 @@ snapshots:
       jsonwebtoken: 9.0.3
     transitivePeerDependencies:
       - supports-color
+
+  '@colyseus/better-call@1.3.3':
+    dependencies:
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      rou3: 0.7.12
+      set-cookie-parser: 3.1.0
 
   '@colyseus/clock@1.0.1': {}
 
@@ -1809,9 +1883,35 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0)':
+    dependencies:
+      '@colyseus/greeting-banner': 2.0.6
+      '@colyseus/msgpackr': 1.11.3
+      '@colyseus/schema': 4.0.25(typescript@5.9.3)
+      '@colyseus/timer': 1.0.3
+      '@pm2/io': 6.1.0
+      debug: 4.4.3
+      nanoid: 2.1.11
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   '@colyseus/greeting-banner@2.0.6': {}
 
   '@colyseus/httpie@2.0.1': {}
+
+  '@colyseus/loadtest@0.17.8(@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0))':
+    dependencies:
+      '@colyseus/sdk': 0.17.42(@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0))(typescript@5.9.3)
+      blessed: 0.1.81
+      minimist: 1.2.8
+      typescript: 5.9.3
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - '@colyseus/core'
+      - bufferutil
+      - utf-8-validate
+      - zod
 
   '@colyseus/msgpackr@1.11.3':
     optionalDependencies:
@@ -1836,6 +1936,30 @@ snapshots:
       - supports-color
 
   '@colyseus/schema@3.0.76': {}
+
+  '@colyseus/schema@4.0.25(typescript@5.9.3)':
+    dependencies:
+      typescript: 5.9.3
+
+  '@colyseus/sdk@0.17.42(@colyseus/core@0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0))(typescript@5.9.3)':
+    dependencies:
+      '@colyseus/better-call': 1.3.3
+      '@colyseus/msgpackr': 1.11.3
+      '@colyseus/schema': 4.0.25(typescript@5.9.3)
+      '@colyseus/shared-types': 0.17.6
+      tslib: 2.8.1
+      ws: 8.21.0
+    optionalDependencies:
+      '@colyseus/core': 0.16.24(@colyseus/schema@4.0.25(typescript@5.9.3))(@pm2/io@6.1.0)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@colyseus/shared-types@0.17.6':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
 
   '@colyseus/testing@0.16.3(@colyseus/core@0.16.24(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))(@colyseus/tools@0.16.20(@colyseus/core@0.16.24(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))(@colyseus/ws-transport@0.16.5(@colyseus/core@0.16.24(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))))(colyseus.js@0.16.22)':
     dependencies:
@@ -2217,6 +2341,8 @@ snapshots:
 
   '@sinclair/typebox@0.27.10': {}
 
+  '@standard-schema/spec@1.1.0': {}
+
   '@types/earcut@3.0.0': {}
 
   '@types/estree@1.0.8': {}
@@ -2308,6 +2434,8 @@ snapshots:
   async@2.6.4:
     dependencies:
       lodash: 4.18.1
+
+  blessed@0.1.81: {}
 
   bn.js@4.12.3:
     optional: true
@@ -2931,6 +3059,8 @@ snapshots:
   minimalistic-crypto-utils@1.0.1:
     optional: true
 
+  minimist@1.2.8: {}
+
   mlly@1.8.2:
     dependencies:
       acorn: 8.16.0
@@ -3154,6 +3284,8 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.60.4
       fsevents: 2.3.3
 
+  rou3@0.7.12: {}
+
   router@2.2.0:
     dependencies:
       debug: 4.4.3
@@ -3225,6 +3357,8 @@ snapshots:
       send: 1.2.1
     transitivePeerDependencies:
       - supports-color
+
+  set-cookie-parser@3.1.0: {}
 
   setprototypeof@1.2.0: {}
 
