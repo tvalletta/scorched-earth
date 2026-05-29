@@ -4,6 +4,16 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import appConfig from "./appConfig.js";
 import { getReplay } from "./rooms/replayStore.js";
 
+// Module-scoped Sentry reference — set during init before main() runs
+let Sentry: { captureException(err: unknown): void } | null = null;
+
+// Conditionally init Sentry — only when SENTRY_DSN is set (production)
+if (process.env.SENTRY_DSN) {
+  const s = await import("@sentry/node");
+  s.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV ?? "development" });
+  Sentry = s;
+}
+
 const PORT = Number(process.env.PORT ?? 2567);
 
 const httpServer = createServer((req, res) => {
@@ -27,21 +37,9 @@ const httpServer = createServer((req, res) => {
     }
     return;
   }
-  // All other HTTP requests fall through to Colyseus
 });
 
 async function main() {
-  // Sentry — only initialised when SENTRY_DSN is set (production)
-  let Sentry: typeof import("@sentry/node") | null = null;
-  if (process.env.SENTRY_DSN) {
-    try {
-      Sentry = await import("@sentry/node");
-      Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV ?? "development" });
-    } catch {
-      console.warn("[server] @sentry/node not available, skipping Sentry init");
-    }
-  }
-
   const gameServer = new Server({
     transport: new WebSocketTransport({ server: httpServer }),
   });
@@ -49,11 +47,10 @@ async function main() {
   await gameServer.listen(PORT, undefined, undefined, () => {
     console.log(`[server] listening on :${PORT}`);
   });
-
-  return Sentry;
 }
 
 main().catch((err) => {
+  Sentry?.captureException(err);
   console.error(err);
   process.exit(1);
 });
