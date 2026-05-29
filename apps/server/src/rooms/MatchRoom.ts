@@ -1,6 +1,6 @@
 import { Room, type Client } from "colyseus";
 import {
-  MatchState, Tank, PendingEffect, AiSlot,
+  MatchState, Tank, PendingEffect, AiSlot, Observer,
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
@@ -26,6 +26,10 @@ import {
   applyFallDamage, commitTurnEnd,
 } from "./tickLoop.js";
 import { randomSlots } from "./placement.js";
+import { applySetIdentity } from "./identity.js";
+
+// Spectator connection headroom beyond the MAX_PLAYERS combatant cap.
+const MAX_OBSERVERS = 8;
 import { ReplayRecorder } from "./ReplayRecorder.js";
 import { storeReplay } from "./replayStore.js";
 
@@ -37,7 +41,7 @@ interface JoinOptions {
 }
 
 export class MatchRoom extends Room<MatchState> {
-  override maxClients = MAX_PLAYERS;
+  override maxClients = MAX_PLAYERS + MAX_OBSERVERS;
   private terrain: Int16Array = new Int16Array(0);
   private timeoutHandle: { clear: () => void } | null = null;
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
@@ -93,7 +97,7 @@ export class MatchRoom extends Room<MatchState> {
       const difficulty = String(msg?.difficulty ?? "shooter");
       if (!(ALL_AI_DIFFICULTIES as string[]).includes(difficulty)) return;
       const totalSlots = this.state.tanks.size + this.state.aiSlots.length;
-      if (totalSlots >= this.maxClients) return;
+      if (totalSlots >= MAX_PLAYERS) return;
       const slot = new AiSlot();
       slot.sessionId = "ai-" + this.state.aiSlots.length;
       slot.difficulty = difficulty;
@@ -129,6 +133,10 @@ export class MatchRoom extends Room<MatchState> {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
       this.startMatch();
+    });
+
+    this.onMessage("set-identity", (client, msg: { nickname?: string; color?: string; hat?: string }) => {
+      applySetIdentity(this.state, client.sessionId, msg);
     });
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
@@ -462,9 +470,15 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   onJoin(client: Client, options: JoinOptions): void {
-    // If game is already in progress or room is at tank capacity, treat as observer
-    if (this.state.phase !== "lobby" || this.state.tanks.size >= this.maxClients) {
+    // If game is already in progress or combatant slots (humans + AI) are full,
+    // treat the joiner as an observer/spectator.
+    const combatants = this.state.tanks.size + this.state.aiSlots.length;
+    if (this.state.phase !== "lobby" || combatants >= MAX_PLAYERS) {
       this.observers.add(client.sessionId);
+      const obs = new Observer();
+      obs.sessionId = client.sessionId;
+      obs.nickname = (options.nickname ?? "Spectator").slice(0, 24);
+      this.state.observers.push(obs);
       return;
     }
 
@@ -487,6 +501,8 @@ export class MatchRoom extends Room<MatchState> {
   async onLeave(client: Client, consented: boolean): Promise<void> {
     if (this.observers.has(client.sessionId)) {
       this.observers.delete(client.sessionId);
+      const i = this.state.observers.findIndex(o => o.sessionId === client.sessionId);
+      if (i !== -1) this.state.observers.splice(i, 1);
       return;
     }
 
