@@ -5,7 +5,6 @@ import { SkyRenderer, timeOfDayFromSeed } from "./Sky";
 import { createTankView, type TankView } from "./Tank";
 import { ProjectileRenderer } from "./Projectile";
 import { Explosion } from "./Explosion";
-import { computeFit } from "./Camera";
 import { stepProjectile, aimAt, shouldReset, type SimProjectile } from "./lobbyBattleSim";
 
 const BATTLE_GRAVITY = 300;
@@ -56,6 +55,7 @@ export class LobbyBattle {
   private paused = false;
   private tickFn = (ticker: { deltaMS: number }) => this.onTick(ticker.deltaMS);
   private onVisibility = () => { this.paused = document.hidden; };
+  private onResize = () => this.frame();
 
   constructor(private app: Application) {
     this.container = new Container();
@@ -67,7 +67,24 @@ export class LobbyBattle {
   start(): void {
     this.build();
     document.addEventListener("visibilitychange", this.onVisibility);
+    window.addEventListener("resize", this.onResize);
     this.app.ticker.add(this.tickFn);
+  }
+
+  /**
+   * Zoom so the full land width fills the viewport edge-to-edge, with the tank
+   * line vertically centered. This makes the battling tanks read large behind
+   * the panel rather than tiny inside a fully-framed battlefield. The sky is
+   * screen-space and always covers behind, so cropping the world is fine.
+   */
+  private frame(): void {
+    if (this.tanks.length === 0) return;
+    const vw = this.app.screen.width;
+    const vh = this.app.screen.height;
+    const scale = vw / TERRAIN_WIDTH;
+    const avgTankY = this.tanks.reduce((s, t) => s + t.y, 0) / this.tanks.length;
+    this.world.scale.set(scale);
+    this.world.position.set(0, vh / 2 - avgTankY * scale);
   }
 
   private build(): void {
@@ -102,13 +119,7 @@ export class LobbyBattle {
       this.tanks.push({ view, x, y, color, hp: 100, alive: true });
     }
 
-    // Static framing of the whole battlefield.
-    const fit = computeFit(
-      [{ x: 0, y: 0 }, { x: TERRAIN_WIDTH, y: TERRAIN_HEIGHT }],
-      { width: this.app.screen.width, height: this.app.screen.height },
-    );
-    this.world.scale.set(fit.scale);
-    this.world.position.set(fit.x, fit.y);
+    this.frame();
 
     this.wind = rand(-40, 40);
     this.battleStart = performance.now();
@@ -221,6 +232,7 @@ export class LobbyBattle {
   dispose(): void {
     this.app.ticker.remove(this.tickFn);
     document.removeEventListener("visibilitychange", this.onVisibility);
+    window.removeEventListener("resize", this.onResize);
     this.container.destroy({ children: true });
   }
 }
