@@ -29,11 +29,11 @@ export class Explosion extends Container {
     const r = this.r;
     const expandT = Math.min(t / 0.15, 1);
     const scale = expandT;
-    const fade = t < 0.15 ? 1 : Math.max(0, 1 - (t - 0.15) / 0.85);
+    const fade = t < 0.15 ? 1 : Math.max(0, 1 - (t - 0.15) / 0.5);
 
     // Shockwave ring (large blasts only)
     if (r > 80) {
-      const ringScale = 1 + t * 0.5;
+      const ringScale = 1 + Math.min(t / 0.167, 1) * 0.5;
       this.g.circle(0, 0, r * ringScale)
         .stroke({ color: 0xfed7aa, width: 2, alpha: Math.max(0, 0.5 - t) });
     }
@@ -54,7 +54,7 @@ export class Explosion extends Container {
 
     // Smoke ring (rises and fades)
     if (t > 0.1) {
-      const smokeT = (t - 0.1) / 0.9;
+      const smokeT = Math.min((t - 0.1) / 0.667, 1);
       const smokeY = -30 * smokeT;
       const smokeAlpha = Math.max(0, 0.4 - smokeT * 0.4);
       this.g.ellipse(0, smokeY, r * 0.4, r * 0.18)
