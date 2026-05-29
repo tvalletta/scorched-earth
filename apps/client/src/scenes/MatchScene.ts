@@ -21,6 +21,8 @@ import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene
 import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
 import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
 
+declare const __SERVER_URL__: string;
+
 declare global {
   interface Window {
     __room?: Room<MatchState>;
@@ -389,6 +391,21 @@ export class MatchScene {
       this.room.state.maxRounds,
       () => { this.room.leave(); window.location.reload(); },
       () => { this.room.leave(); window.location.reload(); },
+      {
+        matchId: this.room.roomId,
+        serverUrl: __SERVER_URL__,
+        onWatch: () => {
+          this.matchEndScene?.dispose();
+          this.matchEndScene = null;
+          const httpUrl = __SERVER_URL__.replace(/^ws/, "http");
+          import("./ReplayScene.js").then(({ ReplayScene }) => {
+            fetch(`${httpUrl}/replays/${this.room.roomId}`)
+              .then((r) => r.json())
+              .then((replay) => new ReplayScene(replay))
+              .catch(console.error);
+          });
+        },
+      },
     );
   }
 }
