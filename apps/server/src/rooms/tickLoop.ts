@@ -4,9 +4,9 @@ import {
   computeDamage, carveInPlace,
   type LiveProjectile, type StepTankInfo, type StepEvent,
 } from "@se/game";
-import { nextTurnPlayerId } from "./turnController";
-import { endRound, applyDamagesWithChainKills } from "./resolveTurn";
-import type { ResolveContext } from "./resolveTurn";
+import { nextTurnPlayerId } from "./turnController.js";
+import { endRound, applyDamagesWithChainKills } from "./resolveTurn.js";
+import type { ResolveContext } from "./resolveTurn.js";
 
 const PATRIOT_DETECT_RADIUS = 200;
 const PATRIOT_CARVE_RADIUS = 30;

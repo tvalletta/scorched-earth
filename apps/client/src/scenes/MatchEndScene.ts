@@ -15,7 +15,13 @@ export interface MatchEndPayload {
 export class MatchEndScene {
   private el: HTMLDivElement;
 
-  constructor(payload: MatchEndPayload, maxRounds: number, onRematch: () => void, onLeave: () => void) {
+  constructor(
+    payload: MatchEndPayload,
+    maxRounds: number,
+    onRematch: () => void,
+    onLeave: () => void,
+    replayOptions?: { matchId: string; serverUrl: string; onWatch: () => void },
+  ) {
     const winner = payload.standings.find((s) => s.sessionId === payload.winnerId);
 
     const rows = payload.standings.map((s, i) => {
@@ -84,6 +90,14 @@ export class MatchEndScene {
           <div id="me-rematch" style="flex:1;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px;text-align:center;cursor:pointer;color:#94a3b8;font-size:10px;">
             🔄 Rematch
           </div>
+          ${replayOptions ? `
+          <div id="me-download-replay" style="flex:1;background:#1e1e30;border:1px solid #3a3a4e;border-radius:6px;padding:10px;text-align:center;cursor:pointer;color:#aaa;font-size:10px;">
+            ⬇ Download Replay
+          </div>
+          <div id="me-watch-replay" style="flex:1;background:#1e3a2e;border:1px solid #2d6a4f;border-radius:6px;padding:10px;text-align:center;cursor:pointer;color:#74c69d;font-size:10px;">
+            ▶ Watch Replay
+          </div>
+          ` : ""}
           <div id="me-leave" style="flex:2;background:linear-gradient(180deg,#ff8c00,#cc5500);border:3px solid #7f2d00;border-radius:8px;box-shadow:0 4px 0 #7f2d00;padding:10px;text-align:center;cursor:pointer;font:bold 13px system-ui;color:#fff;">
             🚪 Leave
           </div>
@@ -93,6 +107,24 @@ export class MatchEndScene {
 
     this.el.querySelector("#me-rematch")!.addEventListener("click", onRematch);
     this.el.querySelector("#me-leave")!.addEventListener("click", onLeave);
+
+    if (replayOptions) {
+      this.el.querySelector("#me-download-replay")?.addEventListener("click", () => {
+        const { matchId, serverUrl } = replayOptions;
+        const httpUrl = serverUrl.replace(/^ws/, "http");
+        fetch(`${httpUrl}/replays/${matchId}`)
+          .then((r) => r.blob())
+          .then((blob) => {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `replay-${matchId}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          })
+          .catch(console.error);
+      });
+      this.el.querySelector("#me-watch-replay")?.addEventListener("click", replayOptions.onWatch);
+    }
 
     document.getElementById("ui")!.appendChild(this.el);
   }

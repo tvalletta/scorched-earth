@@ -1,6 +1,6 @@
 import type { Server } from "colyseus";
-import { LobbyRoom } from "./rooms/LobbyRoom";
-import { MatchRoom } from "./rooms/MatchRoom";
+import { LobbyRoom } from "./rooms/LobbyRoom.js";
+import { MatchRoom } from "./rooms/MatchRoom.js";
 
 export default {
   initializeGameServer: (gameServer: Server) => {

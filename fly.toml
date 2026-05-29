@@ -1,0 +1,22 @@
+app = "scorched-earth"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 2567
+  force_https = true
+  auto_stop_machines = false
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[checks]
+  [checks.alive]
+    type = "http"
+    path = "/health"
+    interval = "10s"
+    timeout = "3s"
+    grace_period = "30s"

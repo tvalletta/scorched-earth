@@ -385,3 +385,84 @@ describe("MatchRoom — AI slots", () => {
     await a.leave(); await b.leave();
   });
 });
+
+describe("MatchRoom — observer intent guard", () => {
+  it("observer fire intent is ignored", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    // C joins mid-game — becomes observer
+    const c = await colyseus.sdk.joinOrCreate("match", { code: "OBS1", nickname: "Carol", color: "green" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(a.state.tanks.has(c.sessionId)).toBe(false);
+
+    const phaseBefore = a.state.phase;
+    c.send("fire", { angle: 45, power: 500 });
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Phase must not have changed (observer fire should be silently dropped)
+    expect(a.state.phase).toBe(phaseBefore);
+
+    await a.leave();
+    await b.leave();
+    await c.leave();
+  });
+});
+
+describe("MatchRoom — ghost AI on reconnect failure", () => {
+  it("ghost AI takes over when reconnection expires", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "GHOST1", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "GHOST1", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Start match
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    const bobSessionId = b.sessionId;
+
+    // Bob disconnects without consent
+    await b.leave(false);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // After grace expires, aiSlots should gain Bob's entry
+    // Tank must still be in state (not deleted)
+    expect(a.state.tanks.has(bobSessionId)).toBe(true);
+
+    // Ghost slot assertions
+    const ghostSlot = Array.from(a.state.aiSlots).find(s => s.sessionId === bobSessionId);
+    expect(ghostSlot).toBeDefined();
+    expect(ghostSlot!.difficulty).toBe("shooter");
+    expect(ghostSlot!.nickname).toBe("Bob");
+
+    await a.leave();
+  });
+
+  it("ghost AI tank remains alive at round 2 (tank.connected is true after promotion)", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "GHOST2", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "GHOST2", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    const bobSessionId = b.sessionId;
+
+    await b.leave(false);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // After grace expires and ghost is promoted, tank.connected must be true
+    // so startNextRound sets tank.alive = tank.connected = true
+    const ghostTank = a.state.tanks.get(bobSessionId);
+    expect(ghostTank).toBeDefined();
+    expect(ghostTank!.connected).toBe(true);
+
+    await a.leave();
+  });
+});

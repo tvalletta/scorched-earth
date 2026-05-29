@@ -20,12 +20,14 @@ import {
   think, AI_PROFILES, shopForAi,
   type ThinkStateSnapshot,
 } from "@se/game";
-import { handleFire, type ResolveContext } from "./resolveTurn";
+import { handleFire, type ResolveContext } from "./resolveTurn.js";
 import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
   applyFallDamage, commitTurnEnd,
-} from "./tickLoop";
-import { randomSlots } from "./placement";
+} from "./tickLoop.js";
+import { randomSlots } from "./placement.js";
+import { ReplayRecorder } from "./ReplayRecorder.js";
+import { storeReplay } from "./replayStore.js";
 
 interface JoinOptions {
   code: string;
@@ -41,6 +43,7 @@ export class MatchRoom extends Room<MatchState> {
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
   private observers = new Set<string>();
+  private recorder = new ReplayRecorder();
   private liveProjectiles: LiveProjectile[] = [];
   private firingSessionId = "";
   private tickInterval: ReturnType<typeof this.clock.setInterval> | null = null;
@@ -129,6 +132,8 @@ export class MatchRoom extends Room<MatchState> {
     });
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
+      if (this.observers.has(client.sessionId)) return; // observers cannot fire
+      this.recorder.captureIntent(client.sessionId, "fire", msg);
       const wasPlaying = this.state.phase === "playing";
       handleFire(this.resolveCtx(), client.sessionId, msg.angle, msg.power);
       if (wasPlaying && this.state.phase === "resolving" && this.timeoutHandle) {
@@ -379,6 +384,7 @@ export class MatchRoom extends Room<MatchState> {
       const currentId = this.state.currentTurnPlayerId;
       const tank = this.state.tanks.get(currentId);
       if (!tank || !tank.alive) return;
+      this.recorder.captureIntent(currentId, "fire", { angle: tank.angle, power: tank.power });
       handleFire(this.resolveCtx(), currentId, tank.angle, tank.power);
     }, this.state.turnTimerMs);
 
@@ -450,6 +456,7 @@ export class MatchRoom extends Room<MatchState> {
         }
       }
 
+      this.recorder.captureIntent(slot.sessionId, "fire", { angle: intent.angle, power: intent.power });
       handleFire(this.resolveCtx(), slot.sessionId, intent.angle, intent.power);
     }, profile.thinkDelayMs);
   }
@@ -504,10 +511,26 @@ export class MatchRoom extends Room<MatchState> {
     }
 
     try {
-      await this.allowReconnection(client, RECONNECT_GRACE_SEC);
+      const graceSec = Number(process.env.RECONNECT_GRACE_SEC ?? RECONNECT_GRACE_SEC);
+      await this.allowReconnection(client, graceSec);
       tank.connected = true;
     } catch {
-      this.state.tanks.delete(client.sessionId);
+      // Only promote to ghost AI during an active match.
+      // During lobby, simply remove the tank (they never played).
+      if (this.state.phase === "lobby") {
+        this.state.tanks.delete(client.sessionId);
+        return;
+      }
+      const ghost = new AiSlot();
+      ghost.sessionId = client.sessionId;
+      ghost.difficulty = "shooter";
+      ghost.nickname = tank.nickname;
+      // Guard against duplicate ghost slots (defensive)
+      if (!this.state.aiSlots.some(s => s.sessionId === client.sessionId)) {
+        this.state.aiSlots.push(ghost);
+        // Mark the tank as "connected" so startNextRound treats the ghost as alive
+        tank.connected = true;
+      }
     }
   }
 
@@ -596,6 +619,8 @@ export class MatchRoom extends Room<MatchState> {
     this.state.currentTurnPlayerId = first ?? "";
     this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
     this.armTurnTimer();
+    this.recorder = new ReplayRecorder(); // fresh recorder per match
+    this.recorder.captureRoundStart(1, this.state);
   }
 
   private placeTanksOn(terrain: Int16Array): void {
@@ -610,6 +635,7 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   private handleRoundEnd(): void {
+    this.recorder.captureRoundEnd(this.state);
     this.clock.setTimeout(() => {
       if (this.state.round >= this.state.maxRounds) {
         this.endMatch();
@@ -694,6 +720,7 @@ export class MatchRoom extends Room<MatchState> {
 
     const winnerId = standings[0]?.sessionId ?? "";
     state.winnerId = winnerId;
+    storeReplay(this.roomId, this.recorder.serialize(this.roomId));
     this.broadcast("match-end", { winnerId, standings });
   }
 
@@ -735,6 +762,7 @@ export class MatchRoom extends Room<MatchState> {
     state.tick++;
     state.turnDeadlineMs = Date.now() + state.turnTimerMs;
     this.armTurnTimer();
+    this.recorder.captureRoundStart(state.round, state);
   }
 
   private applyRoundStartItems(): void {
