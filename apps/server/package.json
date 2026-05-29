@@ -15,6 +15,7 @@
     "@colyseus/ws-transport": "^0.16.0",
     "@se/game": "workspace:*",
     "@se/shared": "workspace:*",
+    "@sentry/node": "^10.55.0",
     "colyseus": "^0.16.0"
   },
   "devDependencies": {
