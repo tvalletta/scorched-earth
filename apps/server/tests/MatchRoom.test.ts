@@ -1,4 +1,3 @@
-process.env.RECONNECT_GRACE_SEC = "0";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import type { Tank } from "@se/shared";
@@ -405,9 +404,14 @@ describe("MatchRoom — ghost AI on reconnect failure", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     // After grace expires, aiSlots should gain Bob's entry
+    // Tank must still be in state (not deleted)
+    expect(a.state.tanks.has(bobSessionId)).toBe(true);
+
+    // Ghost slot assertions
     const ghostSlot = Array.from(a.state.aiSlots).find(s => s.sessionId === bobSessionId);
     expect(ghostSlot).toBeDefined();
     expect(ghostSlot!.difficulty).toBe("shooter");
+    expect(ghostSlot!.nickname).toBe("Bob");
 
     await a.leave();
   });

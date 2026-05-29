@@ -8,5 +8,9 @@ export default defineConfig({
     // Colyseus test server binds a fixed port (2568) per boot — disable
     // parallelism so multiple test files don't collide on EADDRINUSE.
     fileParallelism: false,
+    // Set env vars before any module is evaluated (including constants.ts)
+    env: {
+      RECONNECT_GRACE_SEC: "0",
+    },
   },
 });

@@ -503,16 +503,23 @@ export class MatchRoom extends Room<MatchState> {
     }
 
     try {
-      const graceSec = Number(process.env.RECONNECT_GRACE_SEC ?? RECONNECT_GRACE_SEC);
-      await this.allowReconnection(client, graceSec);
+      await this.allowReconnection(client, RECONNECT_GRACE_SEC);
       tank.connected = true;
     } catch {
-      // Reconnection timed out — promote tank to ghost AI instead of removing it.
+      // Only promote to ghost AI during an active match.
+      // During lobby, simply remove the tank (they never played).
+      if (this.state.phase === "lobby") {
+        this.state.tanks.delete(client.sessionId);
+        return;
+      }
       const ghost = new AiSlot();
       ghost.sessionId = client.sessionId;
       ghost.difficulty = "shooter";
       ghost.nickname = tank.nickname;
-      this.state.aiSlots.push(ghost);
+      // Guard against duplicate ghost slots (defensive)
+      if (!this.state.aiSlots.some(s => s.sessionId === client.sessionId)) {
+        this.state.aiSlots.push(ghost);
+      }
     }
   }
 
