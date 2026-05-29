@@ -17,6 +17,8 @@ import { PlayerList } from "../hud/PlayerList";
 import { AimControls } from "../input/AimControls";
 import { WeaponBar } from "../hud/WeaponBar";
 import { RoundInfo } from "../hud/RoundInfo";
+import { HudBar } from '../hud/HudBar';
+import { PlayerStrip } from '../hud/PlayerStrip';
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
 import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
 import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
@@ -47,6 +49,8 @@ export class MatchScene {
   private roundInfo!: RoundInfo;
   private trajectoryOverlay!: TrajectoryOverlay;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
+  private hudBar: HudBar | null = null;
+  private playerStrip: PlayerStrip | null = null;
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -74,6 +78,8 @@ export class MatchScene {
     this.players = new PlayerList();
     this.aim = new AimControls(room);
     this.weaponBar = new WeaponBar(room);
+    this.hudBar = new HudBar(room);
+    this.playerStrip = new PlayerStrip(room.sessionId);
 
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("tick", (msg: { tick: number; projectiles: {id:string;x:number;y:number;vx:number;vy:number;weaponId:string}[]; patriots: {id:string;x:number;y:number;vx:number;vy:number}[] }) => {
@@ -198,6 +204,9 @@ export class MatchScene {
       this.wind.update(room.state);
       this.timer.update(room.state);
       this.players.update(room.state);
+      this.hudBar?.update(room.state);
+      this.hudBar?.updateTimer(room.state.turnDeadlineMs);
+      this.playerStrip?.update(room.state);
     });
   }
 
@@ -235,6 +244,9 @@ export class MatchScene {
     this.world.addChild(this.trajectoryOverlay);
 
     this.aim.setAimChangeCallback((angle, power) => {
+      this.updateTrajectory(angle, power);
+    });
+    this.hudBar?.setAimChangeCallback((angle, power) => {
       this.updateTrajectory(angle, power);
     });
 
@@ -306,6 +318,8 @@ export class MatchScene {
     if (!state.tanks.has(this.room.sessionId)) {
       this.aim.hide();
       this.weaponBar.hide();
+      if (this.hudBar) this.hudBar.el.style.display = 'none';
+      if (this.playerStrip) this.playerStrip.el.style.display = 'none';
       this.showObserverBanner();
     }
 
@@ -343,6 +357,11 @@ export class MatchScene {
       this.terrain?.updateZones([]);
       this.trajectoryOverlay?.setSmokeZones([]);
     }
+
+    // Show/hide HudBar and PlayerStrip based on phase
+    const showHud = (phase === 'playing');
+    if (this.hudBar) this.hudBar.el.style.display = showHud ? '' : 'none';
+    if (this.playerStrip) this.playerStrip.el.style.display = showHud ? '' : 'none';
 
     // Dispose previous overlay when leaving a phase
     if (this.lastPhase === "round-summary" && phase !== "round-summary") {
