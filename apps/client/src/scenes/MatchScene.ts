@@ -5,7 +5,7 @@ import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { MatchPhase, TerrainType, WallMode } from "@se/shared";
 import { simulateProjectile, WEAPON_REGISTRY } from "@se/game";
 import { TrajectoryOverlay } from "../render/TrajectoryOverlay";
-import { SkyRenderer } from "../render/Sky";
+import { SkyRenderer, timeOfDayFromSeed } from "../render/Sky";
 import { TerrainRenderer } from "../render/Terrain";
 import { createTankView } from "../render/Tank";
 import { ProjectileRenderer } from "../render/Projectile";
@@ -203,7 +203,8 @@ export class MatchScene {
 
   private onFirstState(state: MatchState) {
     console.log("[match] first state, phase=", state.phase, "tanks=", state.tanks.size);
-    this.world.addChild(new SkyRenderer());
+    const timeOfDay = timeOfDayFromSeed(state.terrainSeed);
+    this.world.addChild(new SkyRenderer(timeOfDay, this.app.canvas.width, this.app.canvas.height));
 
     // Terrain seed is set when the match starts (not in lobby). Rebuild terrain
     // whenever the seed arrives so the client renders the same heightmap the
