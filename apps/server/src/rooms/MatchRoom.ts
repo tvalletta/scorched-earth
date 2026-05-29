@@ -503,10 +503,16 @@ export class MatchRoom extends Room<MatchState> {
     }
 
     try {
-      await this.allowReconnection(client, RECONNECT_GRACE_SEC);
+      const graceSec = Number(process.env.RECONNECT_GRACE_SEC ?? RECONNECT_GRACE_SEC);
+      await this.allowReconnection(client, graceSec);
       tank.connected = true;
     } catch {
-      this.state.tanks.delete(client.sessionId);
+      // Reconnection timed out — promote tank to ghost AI instead of removing it.
+      const ghost = new AiSlot();
+      ghost.sessionId = client.sessionId;
+      ghost.difficulty = "shooter";
+      ghost.nickname = tank.nickname;
+      this.state.aiSlots.push(ghost);
     }
   }
 

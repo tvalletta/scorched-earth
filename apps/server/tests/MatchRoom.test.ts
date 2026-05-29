@@ -1,3 +1,4 @@
+process.env.RECONNECT_GRACE_SEC = "0";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import type { Tank } from "@se/shared";
@@ -383,5 +384,31 @@ describe("MatchRoom — AI slots", () => {
       expect(aiTank?.readyForShop).toBe(true);
     }
     await a.leave(); await b.leave();
+  });
+});
+
+describe("MatchRoom — ghost AI on reconnect failure", () => {
+  it("ghost AI takes over when reconnection expires", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "GHOST1", nickname: "Alice", color: "red" });
+    const b = await colyseus.sdk.joinOrCreate("match", { code: "GHOST1", nickname: "Bob", color: "blue" });
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Start match
+    a.send("ready", {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(a.state.phase).toBe("playing");
+
+    const bobSessionId = b.sessionId;
+
+    // Bob disconnects without consent
+    await b.leave(false);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // After grace expires, aiSlots should gain Bob's entry
+    const ghostSlot = Array.from(a.state.aiSlots).find(s => s.sessionId === bobSessionId);
+    expect(ghostSlot).toBeDefined();
+    expect(ghostSlot!.difficulty).toBe("shooter");
+
+    await a.leave();
   });
 });
