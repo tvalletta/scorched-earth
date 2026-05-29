@@ -109,7 +109,7 @@ export function createTankView(opts: { color: string; hat: string }): Container 
         const onTick = (t: { deltaMS: number }) => {
           elapsed += t.deltaMS;
           if (elapsed < 50) { root.tint = 0xffffff; return; }
-          root.tint = 0xffffffff;
+          root.tint = 0xffffff;
           const progress = Math.min((elapsed - 50) / 500, 1);
           const eased = progress * progress;
           setBarrelAngle(startAngle + (270 - startAngle) * eased);
@@ -135,7 +135,7 @@ export function createTankView(opts: { color: string; hat: string }): Container 
     } else if (alive) {
       dying = false;
       root.alpha = 1;
-      root.tint = 0xffffffff;
+      root.tint = 0xffffff;
     }
   };
 

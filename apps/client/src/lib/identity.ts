@@ -30,7 +30,11 @@ export function loadIdentity(): StoredIdentity {
       }
     }
   } catch { /* ignore */ }
-  return freshIdentity();
+  // Persist the generated identity so repeat callers (and reloads) stay
+  // consistent — otherwise each loadIdentity() yields a different random name.
+  const fresh = freshIdentity();
+  saveIdentity(fresh);
+  return fresh;
 }
 
 export function saveIdentity(id: StoredIdentity): void {

@@ -253,6 +253,10 @@ export class MatchScene {
     });
 
     const $ = getStateCallbacks(this.room);
+    // Created before any listener that references it — colyseus `listen` fires
+    // immediately on register, and MatchScene now initializes at phase=playing
+    // with terrain fields already populated.
+    this.roundInfo = new RoundInfo();
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
     $(state).listen("terrainType", (type) => {
       buildTerrain(state.terrainSeed);
@@ -262,7 +266,6 @@ export class MatchScene {
       this.onPhaseChange(phase);
     });
 
-    this.roundInfo = new RoundInfo();
     $(state).listen("wallMode", (mode) => {
       this.roundInfo.update(state.terrainType, mode);
     });

@@ -44,7 +44,11 @@ export interface LobbyView {
  */
 export function buildLobbyView(state: any, localSessionId: string): LobbyView {
   const humans: CombatantVM[] = [];
-  for (const [sid, t] of state.tanks as Map<string, any>) {
+  // Tolerate a partially-initialized state: room.state collections are
+  // undefined until the first patch decodes. MapSchema (and Map) both expose
+  // forEach(value, key); MapSchema is not directly for..of-iterable on the client.
+  const tanks = state.tanks as { forEach?(cb: (t: any, sid: string) => void): void; has?(k: string): boolean } | undefined;
+  tanks?.forEach?.((t, sid) => {
     humans.push({
       sessionId: sid,
       name: t.nickname,
@@ -55,8 +59,8 @@ export function buildLobbyView(state: any, localSessionId: string): LobbyView {
       isYou: sid === localSessionId,
       connected: t.connected !== false,
     });
-  }
-  const ai: CombatantVM[] = Array.from(state.aiSlots as Iterable<any>).map((s) => ({
+  });
+  const ai: CombatantVM[] = Array.from((state.aiSlots ?? []) as Iterable<any>).map((s) => ({
     sessionId: s.sessionId,
     name: s.nickname || "AI",
     color: "white",
@@ -68,17 +72,17 @@ export function buildLobbyView(state: any, localSessionId: string): LobbyView {
     difficulty: s.difficulty,
   }));
   const combatants = [...humans, ...ai];
-  const spectators: SpectatorVM[] = Array.from(state.observers as Iterable<any>).map((o) => ({
+  const spectators: SpectatorVM[] = Array.from((state.observers ?? []) as Iterable<any>).map((o) => ({
     sessionId: o.sessionId,
     nickname: o.nickname,
   }));
-  const isAnyTank = (state.tanks as Map<string, any>).has(localSessionId);
+  const isAnyTank = tanks?.has?.(localSessionId) ?? false;
   return {
     isHost: localSessionId === state.hostId,
     isSpectator: !isAnyTank && spectators.some((s) => s.sessionId === localSessionId),
-    roomCode: state.roomCode,
-    maxRounds: state.maxRounds,
-    loadoutId: state.loadoutId,
+    roomCode: state.roomCode ?? "",
+    maxRounds: state.maxRounds ?? 5,
+    loadoutId: state.loadoutId ?? "standard",
     combatants,
     combatantCount: combatants.length,
     isFull: combatants.length >= MAX_PLAYERS,
