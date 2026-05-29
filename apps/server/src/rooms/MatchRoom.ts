@@ -25,6 +25,8 @@ import {
   buildStepTanks, applyStepEvent, checkPatriotTriggers,
   applyFallDamage, commitTurnEnd,
 } from "./tickLoop";
+import { ReplayRecorder } from "./ReplayRecorder.js";
+import { storeReplay } from "./replayStore.js";
 
 interface JoinOptions {
   code: string;
@@ -40,6 +42,7 @@ export class MatchRoom extends Room<MatchState> {
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
   private observers = new Set<string>();
+  private recorder = new ReplayRecorder();
   private liveProjectiles: LiveProjectile[] = [];
   private firingSessionId = "";
   private tickInterval: ReturnType<typeof this.clock.setInterval> | null = null;
@@ -129,6 +132,7 @@ export class MatchRoom extends Room<MatchState> {
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
       if (this.observers.has(client.sessionId)) return; // observers cannot fire
+      this.recorder.captureIntent(client.sessionId, "fire", msg);
       const wasPlaying = this.state.phase === "playing";
       handleFire(this.resolveCtx(), client.sessionId, msg.angle, msg.power);
       if (wasPlaying && this.state.phase === "resolving" && this.timeoutHandle) {
@@ -609,6 +613,8 @@ export class MatchRoom extends Room<MatchState> {
     this.state.currentTurnPlayerId = first ?? "";
     this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
     this.armTurnTimer();
+    this.recorder = new ReplayRecorder(); // fresh recorder per match
+    this.recorder.captureRoundStart(1, this.state);
   }
 
   private placeTanksOn(terrain: Int16Array): void {
@@ -623,6 +629,7 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   private handleRoundEnd(): void {
+    this.recorder.captureRoundEnd(this.state);
     this.clock.setTimeout(() => {
       if (this.state.round >= this.state.maxRounds) {
         this.endMatch();
@@ -707,6 +714,7 @@ export class MatchRoom extends Room<MatchState> {
 
     const winnerId = standings[0]?.sessionId ?? "";
     state.winnerId = winnerId;
+    storeReplay(this.roomId, this.recorder.serialize(this.roomId));
     this.broadcast("match-end", { winnerId, standings });
   }
 
@@ -748,6 +756,7 @@ export class MatchRoom extends Room<MatchState> {
     state.tick++;
     state.turnDeadlineMs = Date.now() + state.turnTimerMs;
     this.armTurnTimer();
+    this.recorder.captureRoundStart(state.round, state);
   }
 
   private applyRoundStartItems(): void {
