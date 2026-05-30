@@ -114,6 +114,8 @@ export interface LiveProjectile {
   isRolling?: boolean;   // Roller — rolling along terrain surface
   rollDir?: 1 | -1;      // Roller — direction of roll (+1 right, -1 left)
   isBurrowing?: boolean; // Sandhog/Tunneler — currently boring downward
+  // Hull collision arming: true once the shell has left its owner's hull
+  armed?: boolean;
 }
 
 export interface StepTankInfo {
