@@ -33,6 +33,7 @@ export class HudBar {
   private weaponKeys: string[];
   private carouselCenter = 0;
   private selectedKey = 'baby-missile';
+  private lastCarouselKey = '';
   private localInventory: Map<string, number> = new Map();
   private localTank: { setAngle(deg: number): void } | null = null;
   private maxFuel = 0;
@@ -75,11 +76,17 @@ export class HudBar {
     if (myTank) {
       // The local HUD owns angle/power/weapon-selection — do NOT sync them back
       // from server state every frame (that clobbered keyboard input + carousel
-      // scrolling). Only refresh ammo counts and re-render the carousel at its
-      // current position.
+      // scrolling). Only re-render the carousel when its contents actually
+      // change — re-rendering every frame destroyed chip elements between
+      // mousedown and click, so clicks never registered.
       this.localInventory = new Map(myTank.inventory.entries());
-      this.renderCarousel();
+      if (this.carouselKey() !== this.lastCarouselKey) this.renderCarousel();
     }
+  }
+
+  private carouselKey(): string {
+    return this.carouselCenter + '|' +
+      Array.from(this.localInventory.entries()).map(([k, v]) => `${k}:${v}`).join(',');
   }
 
   /** Wind + round + terrain/wall — folded in from the old WindArrow/RoundInfo. */
@@ -207,6 +214,14 @@ export class HudBar {
   private bindEvents(): void {
     this.el.querySelector('#hud-prev')!.addEventListener('click', () => this.scrollCarousel(-1));
     this.el.querySelector('#hud-next')!.addEventListener('click', () => this.scrollCarousel(1));
+
+    // Scroll wheel (horizontal or vertical) cycles the weapon carousel.
+    const carousel = this.el.querySelector<HTMLDivElement>('#hud-carousel');
+    carousel?.addEventListener('wheel', (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta !== 0) this.scrollCarousel(delta > 0 ? 1 : -1);
+    }, { passive: false });
 
     const fireBtn = this.el.querySelector<HTMLButtonElement>('#hud-fire')!;
     fireBtn.addEventListener('mousedown', () => { fireBtn.style.transform = 'translateY(3px)'; fireBtn.style.boxShadow = '0 2px 0 #7f2d00'; });
@@ -386,5 +401,6 @@ export class HudBar {
         if (i >= 0) this.selectWeaponAt(i);
       });
     });
+    this.lastCarouselKey = this.carouselKey();
   }
 }

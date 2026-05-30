@@ -84,6 +84,9 @@ export function createTankView(opts: { color: string; hat: string }): Container 
 
   let currentAngleDeg = 90;
   let dying = false;
+  let skull: Text | null = null;
+  let deathTick: ((t: { deltaMS: number }) => void) | null = null;
+  const tankTicker = (window as { pixiApp?: { ticker: { add: (fn: (t: { deltaMS: number }) => void) => void; remove: (fn: (t: { deltaMS: number }) => void) => void } } }).pixiApp?.ticker;
 
   const setBarrelAngle = (deg: number) => {
     currentAngleDeg = deg;
@@ -101,41 +104,49 @@ export function createTankView(opts: { color: string; hat: string }): Container 
     if (!alive && !dying) {
       dying = true;
       root.tint = 0xffffff;
-      const ticker = (window as { pixiApp?: { ticker: { add: (fn: (t: { deltaMS: number }) => void) => void; remove: (fn: (t: { deltaMS: number }) => void) => void } } }).pixiApp?.ticker;
-      if (ticker) {
+      if (tankTicker) {
         let elapsed = 0;
         const startAngle = currentAngleDeg;
         const startAlpha = root.alpha;
-        const onTick = (t: { deltaMS: number }) => {
+        deathTick = (t: { deltaMS: number }) => {
           elapsed += t.deltaMS;
           if (elapsed < 50) { root.tint = 0xffffff; return; }
           root.tint = 0xffffff;
           const progress = Math.min((elapsed - 50) / 500, 1);
           const eased = progress * progress;
-          setBarrelAngle(startAngle + (270 - startAngle) * eased);
+          // Tween the barrel down WITHOUT mutating currentAngleDeg, so revive
+          // can restore the real aim angle.
+          const deg = startAngle + (270 - startAngle) * eased;
+          barrel.rotation = Math.PI + (deg * Math.PI) / 180;
           root.alpha = startAlpha - (startAlpha - 0.3) * eased;
           if (progress >= 1) {
-            ticker.remove(onTick);
-            const skull = new Text({ text: '💀', style: { fontSize: 16 } });
-            skull.anchor.set(0.5, 1);
-            skull.position.set(0, -20);
-            root.addChild(skull);
-            let floatElapsed = 0;
-            const floatY = skull.y;
-            const onFloat = (ft: { deltaMS: number }) => {
-              floatElapsed += ft.deltaMS;
-              skull.y = floatY - (floatElapsed / 600) * 20;
-              if (floatElapsed >= 600) ticker.remove(onFloat);
-            };
-            ticker.add(onFloat);
+            if (deathTick) { tankTicker.remove(deathTick); deathTick = null; }
+            if (!skull) {
+              skull = new Text({ text: '💀', style: { fontSize: 16 } });
+              skull.anchor.set(0.5, 1);
+              skull.position.set(0, -20);
+              root.addChild(skull);
+              let floatElapsed = 0;
+              const floatY = skull.y;
+              const onFloat = (ft: { deltaMS: number }) => {
+                floatElapsed += ft.deltaMS;
+                if (skull) skull.y = floatY - (floatElapsed / 600) * 20;
+                if (floatElapsed >= 600) tankTicker.remove(onFloat);
+              };
+              tankTicker.add(onFloat);
+            }
           }
         };
-        ticker.add(onTick);
+        tankTicker.add(deathTick);
       }
     } else if (alive) {
+      // Revive (e.g. next round) — fully undo the death animation.
+      if (deathTick && tankTicker) { tankTicker.remove(deathTick); deathTick = null; }
+      if (skull) { root.removeChild(skull); skull.destroy(); skull = null; }
       dying = false;
       root.alpha = 1;
       root.tint = 0xffffff;
+      setBarrelAngle(currentAngleDeg); // restore turret to the real aim angle
     }
   };
 
