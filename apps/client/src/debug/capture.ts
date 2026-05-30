@@ -21,7 +21,8 @@ const lastByReason = new Map<string, number>();
 export async function capture(reason: "uncaught" | "manual" | "invariant", detail?: string): Promise<void> {
   const key = `${reason}:${detail ?? ""}`;
   const now = Date.now();
-  if (reason === "invariant" && now - (lastByReason.get(key) ?? 0) < 10_000) return; // rate limit
+  const rateLimitMs = reason === "manual" ? 0 : 10_000; // manual (hotkey) always fires; auto-captures throttled per key
+  if (rateLimitMs && now - (lastByReason.get(key) ?? 0) < rateLimitMs) return;
   lastByReason.set(key, now);
 
   let screenshotPng: string | undefined;
@@ -46,15 +47,15 @@ export async function capture(reason: "uncaught" | "manual" | "invariant", detai
   };
 
   const http = (typeof __SERVER_URL__ !== "undefined" ? __SERVER_URL__ : "ws://localhost:2567").replace(/^ws/, "http");
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), 5000);
   try {
-    const controller = new AbortController();
-    const to = setTimeout(() => controller.abort(), 5000);
     await fetch(`${http}/debug`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(bundle), signal: controller.signal,
     });
-    clearTimeout(to);
   } catch { /* swallow; capture must never throw into the app */ }
+  finally { clearTimeout(to); }
 }
 
 export function installCaptureTriggers(): void {
