@@ -48,4 +48,7 @@ export class MatchState extends Schema {
   @type([AiSlot]) aiSlots = new ArraySchema<AiSlot>();
   // Lobby — spectators (joined while full or mid-match)
   @type([Observer]) observers = new ArraySchema<Observer>();
+  // Dual-heightmap — cave (absorb mode) has a ceiling above the floor
+  @type("boolean") hasCeiling = false;
+  @type("string") ceilingSeed = "";
 }

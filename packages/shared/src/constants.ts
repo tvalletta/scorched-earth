@@ -19,6 +19,10 @@ export type TankHat = typeof HATS[number];
 export const PLAY_CEILING_Y = -600;       // remove projectiles that rise above this y
 export const PLAY_FLOOR_MARGIN = 500;     // soft bottom = terrainHeight + this
 
+// Cave (absorb mode) dual-heightmap tuning.
+export const CAVE_MIN_GAP = 280;     // minimum vertical air gap floor − ceiling
+export const CAVE_EDGE_SEAL = 140;   // px at each side where the cave seals shut
+
 export const DEFAULT_MAX_ROUNDS = 5;
 export const DEFAULT_STARTING_CASH = 10_000;
 export const ROUND_SUMMARY_DURATION_MS = 5_000;

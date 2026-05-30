@@ -5,4 +5,5 @@ export class CarveOp extends Schema {
   @type("number") y = 0;
   @type("number") radius = 0;
   @type("number") tick = 0;
+  @type("string") layer = "floor"; // "floor" | "ceiling"
 }
