@@ -341,10 +341,11 @@ export class MatchScene {
       this.trajectoryOverlay?.setSmokeZones([]);
     }
 
-    // Show/hide HudBar and PlayerStrip based on phase
+    // Show/hide HudBar and PlayerStrip based on phase. Use explicit 'flex'
+    // (not '') so toggling never clears the inline flex layout.
     const showHud = (phase === 'playing');
-    if (this.hudBar) this.hudBar.el.style.display = showHud ? '' : 'none';
-    if (this.playerStrip) this.playerStrip.el.style.display = showHud ? '' : 'none';
+    if (this.hudBar) this.hudBar.el.style.display = showHud ? 'flex' : 'none';
+    if (this.playerStrip) this.playerStrip.el.style.display = showHud ? 'flex' : 'none';
 
     // Dispose previous overlay when leaving a phase
     if (this.lastPhase === "round-summary" && phase !== "round-summary") {
