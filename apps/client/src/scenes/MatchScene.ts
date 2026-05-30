@@ -12,12 +12,6 @@ import { createTankView } from "../render/Tank";
 import { ProjectileRenderer } from "../render/Projectile";
 import { PatriotRenderer } from "../render/Patriot";
 import { Explosion } from "../render/Explosion";
-import { WindArrow } from "../hud/WindArrow";
-import { TurnTimer } from "../hud/TurnTimer";
-import { PlayerList } from "../hud/PlayerList";
-import { AimControls } from "../input/AimControls";
-import { WeaponBar } from "../hud/WeaponBar";
-import { RoundInfo } from "../hud/RoundInfo";
 import { HudBar } from '../hud/HudBar';
 import { PlayerStrip } from '../hud/PlayerStrip';
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
@@ -44,12 +38,6 @@ export class MatchScene {
   private activeAnims: Array<{ tick(): boolean; removeFromParent(): void }> = [];
   private projectileRenderer!: ProjectileRenderer;
   private patriotRenderer!: PatriotRenderer;
-  private wind!: WindArrow;
-  private timer!: TurnTimer;
-  private players!: PlayerList;
-  protected aim!: AimControls;
-  private weaponBar!: WeaponBar;
-  private roundInfo!: RoundInfo;
   private cage!: CageRenderer;
   private trajectoryOverlay!: TrajectoryOverlay;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
@@ -80,11 +68,6 @@ export class MatchScene {
     window.__room = room;
     window.__sessionId = room.sessionId;
 
-    this.wind = new WindArrow();
-    this.timer = new TurnTimer();
-    this.players = new PlayerList();
-    this.aim = new AimControls(room);
-    this.weaponBar = new WeaponBar(room);
     this.hudBar = new HudBar(room);
     this.playerStrip = new PlayerStrip(room.sessionId);
 
@@ -208,11 +191,9 @@ export class MatchScene {
         }
         return true;
       });
-      this.wind.update(room.state);
-      this.timer.update(room.state);
-      this.players.update(room.state);
       this.hudBar?.update(room.state);
       this.hudBar?.updateTimer(room.state.turnDeadlineMs);
+      this.hudBar?.updateWindRound(room.state);
       this.playerStrip?.update(room.state);
     });
   }
@@ -253,29 +234,21 @@ export class MatchScene {
     this.trajectoryOverlay = new TrajectoryOverlay();
     this.world.addChild(this.trajectoryOverlay);
 
-    this.aim.setAimChangeCallback((angle, power) => {
-      this.updateTrajectory(angle, power);
-    });
     this.hudBar?.setAimChangeCallback((angle, power) => {
       this.updateTrajectory(angle, power);
     });
 
     const $ = getStateCallbacks(this.room);
-    // Created before any listener that references it — colyseus `listen` fires
-    // immediately on register, and MatchScene now initializes at phase=playing
-    // with terrain fields already populated.
-    this.roundInfo = new RoundInfo();
     $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
     $(state).listen("terrainType", (type) => {
       buildTerrain(state.terrainSeed);
-      this.roundInfo.update(type, state.wallMode);
+      void type;
     });
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });
 
     $(state).listen("wallMode", (mode) => {
-      this.roundInfo.update(state.terrainType, mode);
       this.cage.update(mode, PLAY_CEILING_Y, TERRAIN_HEIGHT + PLAY_FLOOR_MARGIN);
     }, true);
     $(state).terrainOps.onAdd((op) => {
@@ -305,23 +278,22 @@ export class MatchScene {
         this.tanks.get(id)?.setShield(tank.shieldId, tank.shieldHp, tank.shieldMaxHp);
       });
       $(tank).listen("fuel", () => {
-        if (id === this.room.sessionId) this.aim.updateFuel(tank.fuel);
+        if (id === this.room.sessionId) this.hudBar?.updateFuel(tank.fuel);
       });
       if (id === this.room.sessionId) {
-        this.aim.setLocalTank(view);
-        this.weaponBar.wire();
+        this.hudBar?.setLocalTank(view);
       }
     });
     $(state).tanks.onRemove((_t, id) => {
       this.tanks.get(id)?.destroy();
       this.tanks.delete(id);
-      if (id === this.room.sessionId) this.aim.setLocalTank(null);
+      if (id === this.room.sessionId) this.hudBar?.setLocalTank(null);
     });
     $(state).listen("currentTurnPlayerId", (turnId: string) => {
       if (turnId === this.room.sessionId) {
         const tank = this.room.state.tanks.get(turnId);
-        if (tank) this.aim.setDriveMode(tank.fuel, tank.fuel);
-        const { angle, power } = this.aim.getCurrentAim();
+        if (tank) this.hudBar?.setDriveMode(tank.fuel, tank.fuel);
+        const { angle, power } = this.hudBar?.getCurrentAim() ?? { angle: 90, power: 500 };
         this.updateTrajectory(angle, power);
       } else {
         this.trajectoryOverlay.clear();
@@ -330,8 +302,6 @@ export class MatchScene {
 
     // Observer mode: this client joined but has no tank
     if (!state.tanks.has(this.room.sessionId)) {
-      this.aim.hide();
-      this.weaponBar.hide();
       if (this.hudBar) this.hudBar.el.style.display = 'none';
       if (this.playerStrip) this.playerStrip.el.style.display = 'none';
       this.showObserverBanner();
@@ -362,7 +332,6 @@ export class MatchScene {
 
   private onPhaseChange(phase: MatchPhase): void {
     if (phase !== "playing") this.trajectoryOverlay?.clear();
-    if (phase === "lobby") this.roundInfo?.hide();
     if (phase === "playing") {
       this.camera?.onTurnStart();
       this.fitToLivingTanks();
