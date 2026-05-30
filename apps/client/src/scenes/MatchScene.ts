@@ -1,7 +1,7 @@
 import { Application, Container, Graphics } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
-import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT, PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
 import type { MatchPhase, TerrainType, WallMode } from "@se/shared";
 import { simulateProjectile, WEAPON_REGISTRY } from "@se/game";
 import { TrajectoryOverlay } from "../render/TrajectoryOverlay";
@@ -273,7 +273,7 @@ export class MatchScene {
 
     $(state).listen("wallMode", (mode) => {
       this.roundInfo.update(state.terrainType, mode);
-      this.cage.update(mode);
+      this.cage.update(mode, PLAY_CEILING_Y, TERRAIN_HEIGHT + PLAY_FLOOR_MARGIN);
     }, true);
     $(state).terrainOps.onAdd((op) => {
       const particles = this.terrain?.carve(op);
