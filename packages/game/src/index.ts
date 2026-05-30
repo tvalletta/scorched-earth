@@ -6,7 +6,7 @@ export type {
   Point, TerrainOptions, CarveOp, WeaponDef, SplitDef, TargetInfo,
   DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
 } from "./types";
-export { generateTerrain } from "./terrain/generate";
+export { generateTerrain, generateUnderside } from "./terrain/generate";
 export { carveInPlace, applyCarve } from "./terrain/carve";
 export {
   BABY_MISSILE, MISSILE, BABY_NUKE, NUKE, FUNKY_BOMB, MIRV,

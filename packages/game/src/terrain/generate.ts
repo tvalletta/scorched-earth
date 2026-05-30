@@ -251,3 +251,25 @@ export function generateTerrain(opts: TerrainOptions): Int16Array {
   const gen = generators[opts.type] ?? genRandom;
   return gen(opts);
 }
+
+/**
+ * Cosmetic underside profile for the floating island: organic octave noise
+ * (like the top surface) plus a U-shaped term so the left/right edges plunge
+ * — the island "drops off the face" rather than ending in a vertical cut.
+ * Returns bottom-y per column (larger y = deeper).
+ */
+export function generateUnderside(seed: string, width: number, avgSurface: number): Int16Array {
+  const o1 = buildOctave(seed + "-u1", 220, width);
+  const o2 = buildOctave(seed + "-u2", 90, width);
+  const o3 = buildOctave(seed + "-u3", 40, width);
+  const out = new Int16Array(width);
+  const baseDepth = 300;
+  const amp = 120;
+  for (let x = 0; x < width; x++) {
+    const t = x / (width - 1);
+    const noise = (o1[x] as number) * 0.6 + (o2[x] as number) * 0.3 + (o3[x] as number) * 0.1;
+    const edge = Math.pow(Math.abs(t - 0.5) * 2, 2.2) * 260; // plunge toward both edges
+    out[x] = Math.round(avgSurface + baseDepth + noise * amp + edge);
+  }
+  return out;
+}

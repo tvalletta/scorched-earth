@@ -1,7 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { TerrainType } from "@se/shared";
-import { generateTerrain, carveInPlace } from "@se/game";
+import { generateTerrain, generateUnderside, carveInPlace } from "@se/game";
 import { DirtParticles } from "./DirtParticles";
 
 export class TerrainRenderer extends Container {
@@ -133,19 +133,14 @@ export class TerrainRenderer extends Container {
     const phase = (s % 1000) / 1000 * Math.PI * 2;
 
     const MIN_THICKNESS = 170;
-    const EDGE_DEPTH = 240;
-    const CENTER_EXTRA = 340;
+    void phase;
 
+    // Organically-generated underside (octave noise + plunging edges), guarded
+    // so the island always has a minimum thickness even under deep valleys.
+    const gen = generateUnderside(this.seed, W, avgSurface);
     const bottom = new Float32Array(W);
     for (let x = 0; x < W; x++) {
-      const t = x / (W - 1);
-      const bell = Math.sin(Math.PI * t); // 0 at edges → 1 at centre
-      const noise =
-        24 * Math.sin(t * Math.PI * 6 + phase) +
-        14 * Math.sin(t * Math.PI * 13 + phase * 1.7) +
-        8 * Math.sin(t * Math.PI * 23 + phase * 0.5);
-      const smooth = avgSurface + EDGE_DEPTH + CENTER_EXTRA * bell + noise;
-      bottom[x] = Math.max((h[x] ?? 0) + MIN_THICKNESS, smooth);
+      bottom[x] = Math.max((h[x] ?? 0) + MIN_THICKNESS, gen[x]!);
     }
 
     // Body — medium rock from the surface down to the underside contour.
@@ -155,10 +150,9 @@ export class TerrainRenderer extends Container {
     g.closePath();
     g.fill(0x3a2614);
 
-    // Shadow — darker mass over the lower ~half for depth.
-    const shadowTop = avgSurface + EDGE_DEPTH + 110;
-    g.moveTo(0, Math.max(shadowTop, (h[0] ?? 0) + MIN_THICKNESS));
-    for (let x = 1; x < W; x++) g.lineTo(x, Math.max(shadowTop + 18 * Math.sin((x / (W - 1)) * Math.PI), (h[x] ?? 0) + MIN_THICKNESS));
+    // Shadow — darker mass hugging the lower portion of the island for depth.
+    g.moveTo(0, bottom[0]! - 150);
+    for (let x = 1; x < W; x++) g.lineTo(x, bottom[x]! - 150);
     for (let x = W - 1; x >= 0; x--) g.lineTo(x, bottom[x]!);
     g.closePath();
     g.fill({ color: 0x1c1208, alpha: 0.6 });
