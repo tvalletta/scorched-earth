@@ -59,14 +59,16 @@ export class DebugStore {
       if (!m) continue;
       const id = m[1]!;
       const full = join(this.dir, f);
-      const st = statSync(full);
-      const cur = map.get(id) ?? { id, mtime: 0, size: 0, seq: 0 };
-      cur.mtime = Math.max(cur.mtime, st.mtimeMs);
-      cur.size += st.size;
-      if (f.endsWith(".json")) {
-        try { cur.seq = JSON.parse(readFileSync(full, "utf8"))._seq ?? 0; } catch { /* keep 0 */ }
-      }
-      map.set(id, cur);
+      try {
+        const st = statSync(full);
+        const cur = map.get(id) ?? { id, mtime: 0, size: 0, seq: 0 };
+        cur.mtime = Math.max(cur.mtime, st.mtimeMs);
+        cur.size += st.size;
+        if (f.endsWith(".json")) {
+          try { cur.seq = JSON.parse(readFileSync(full, "utf8"))._seq ?? 0; } catch { /* keep 0 */ }
+        }
+        map.set(id, cur);
+      } catch { continue; }
     }
     return [...map.values()];
   }
