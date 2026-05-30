@@ -12,7 +12,8 @@ This spec covers five work items, designed together but implementable as indepen
 2. **Redesign — turn indicator / HUD top → "Layout C"** (new `TurnHud` component).
 3. **Bug cluster — camera zoom/pan** (cursor-anchored zoom, smooth steps, world bounds, stuck-state fixes).
 4. **Bug — weapon selection unreliable on your turn** (per-frame carousel re-render eating clicks; missing server turn-check).
-5. **Feature — debug capture + automated regression** (structured logging, error/manual/invariant capture bundles, headless invariant runner, replay determinism test).
+5. **Feature — debug capture + automated regression** (structured logging, error/manual/invariant capture bundles with disk retention/rotation, a screenshot→AI visual-critique loop, headless invariant runner, replay determinism test).
+6. **Polish — terrain art** (cave stalactites + floating-island undersides made organic/cartoon-realistic, Worms Armageddon reference, verified via the §5.9 critique loop).
 
 **Tech context:** pnpm monorepo. Client = Vite + **PixiJS v8.2** (`apps/client`). Server = **Colyseus v0.16** (`apps/server`). Shared schemas/constants = `packages/shared`. Pure sim = `packages/game`. Tests = **Vitest** (server + game) and **Playwright** (`tests/e2e`). Sentry is wired server-side, opt-in via `SENTRY_DSN`. A replay recorder already captures intents + terrain ops and serves them at `GET /replays/:id`.
 
@@ -358,6 +359,13 @@ interface DebugBundle {
 
 **Security/limits:** `/debug` is intended for dev/staging. Gate behind `DEBUG_CAPTURE_ENABLED` env (default **on** in non-production, **off** in production) and a body-size cap; reject when disabled with 404. No auth beyond that (same posture as replays).
 
+**Retention / auto-rotation (so bundles never grow forever):** `debugStore` enforces a retention policy on every `save()` and once on boot:
+- **Max count:** keep the newest `DEBUG_RETENTION_MAX` bundles (default **200**); delete the oldest beyond that (both `.json` and `.png` for an id).
+- **Max age:** delete any bundle whose mtime is older than `DEBUG_RETENTION_DAYS` (default **7**).
+- **Optional size ceiling:** if total dir size exceeds `DEBUG_RETENTION_MB` (default **500**), delete oldest until under the cap.
+- Pruning is best-effort and logged at `info` (`[debug] pruned N bundles`); failures are swallowed so capture is never blocked by cleanup.
+- The in-memory `RingBuffer` is bounded by capacity (300) and the server log ring likewise — neither writes to disk, so the only thing that accumulates is the `DEBUG_DIR`, which the policy above bounds. (Existing replay store is out of scope here; note it as a follow-up if replays need the same treatment.)
+
 ### 5.4 Shared invariants module — `packages/shared/src/invariants.ts` (new)
 Pure functions reused by client checker, server runtime, and CI runner — single source of truth.
 ```ts
@@ -401,9 +409,50 @@ Inject `__BUILD_ID__` in `apps/client/vite.config.ts` via `define` (git short sh
 - Throwing a client error auto-creates a bundle; tripping an invariant (e.g. forced NaN) auto-creates one.
 - `pnpm --filter @se/server test` runs the invariant + replay-determinism suites green; `pnpm --filter @se/client test` runs the skull test green.
 
+### 5.9 Visual-quality critique loop (dev tool) — `scripts/art-critique.mjs` (new)
+A dev-time feedback loop that turns "does this look right?" into an automatable check, reusing the capture infrastructure.
+
+**Flow:**
+1. Capture a screenshot of the live game view — either from a saved debug bundle's `.png`, or freshly via Playwright (`scripts/art-critique.mjs --url http://localhost:5173 --scenario cave`) which boots a match into a chosen terrain/wall mode and screenshots the canvas.
+2. Send the PNG to the **Claude API (vision)** with an art-direction rubric prompt (model: latest Sonnet for cost, e.g. `claude-sonnet-4-6`). The prompt asks for a structured verdict:
+   ```
+   You are an art director reviewing a 2D artillery game (Worms Armageddon-style,
+   cartoon-realistic). Assess this screenshot on:
+   - Cave look: do stalactites/stalagmites read as organic rock, or too geometric/uniform?
+   - Floating island underside: chunky/organic with tapering + trailing rocks, or a flat wedge?
+   - Terrain fill: textured (grass rim + dirt/rock body, top highlight, darker interior) or flat color?
+   - Overall: "cartoon-realistic" target met? Score 1-5 per axis + one concrete fix each.
+   Return JSON: { caves:{score,note}, island:{score,note}, fill:{score,note}, overall:{score,note} }.
+   ```
+3. Print the JSON verdict; optionally write it next to the screenshot. This is **manual/CI-optional**, not a runtime feature — run it when iterating on terrain art.
+
+**Implementation notes:** uses `@anthropic-ai/sdk` with prompt caching on the rubric system prompt; API key from `ANTHROPIC_API_KEY` env; no-ops with a clear message if the key is absent. Keep it a standalone script (not bundled into client/server).
+
+**Acceptance:** running `node scripts/art-critique.mjs --scenario cave` against a running dev server prints a per-axis score + concrete note. Used as the feedback signal for the §6 art polish.
+
 ---
 
-## 6. File-Level Change Summary
+## 6. Terrain Art Polish — Cave & Floating Islands (Worms-style)
+
+### 6.1 Goal
+Make the **absorb-mode cave ceiling** and the **floating-island underside** read as cartoon-realistic rock rather than geometric shapes, using Worms Armageddon as the reference (organic blobby silhouettes, textured fill, lighter top rim + darker interior, irregular tapering features — never straight edges or uniform triangles).
+
+### 6.2 Targets in `apps/client/src/render/Terrain.ts`
+- **Stalactites (cave ceiling, hanging down) / stalagmites:** replace any uniform/triangular teeth with **irregular tapering forms** — randomized (seeded) width, length, slight horizontal curve/lean, and varied spacing; round the tips; add a couple of size classes (big anchors + small filler) so the row isn't rhythmic. Drive from the existing ceiling seed so client/server agree visually (geometry is cosmetic, not physics).
+- **Floating-island underside:** chunky bulbous taper to a rounded point with a few trailing rocks/roots beneath, not a clean wedge. Add subtle bumps along the underside contour.
+- **Fill & shading:** keep the grass rim on top; give the body a vertical gradient (lighter near the surface, darker deep) and a 1–2px lighter highlight along the top edge; subtle noise/speckle for rock texture if cheap in PixiJS (e.g. a few scattered darker dots).
+- **Silhouette rule:** no segment of the terrain/cave outline should be a long straight line or a perfect geometric angle — jitter vertices.
+
+### 6.3 Verification
+- Run the §5.9 art-critique loop on `cave` and `floating-island` scenarios; target **≥4/5** on the `caves` and `island` axes with no "too geometric" note. Iterate vertex jitter / taper params until met.
+- Visual spot-check in the running app across a few seeds (caves vary).
+
+### 6.4 Notes / scope
+This is **art tuning**, not physics — the server heightmaps/ceiling are unchanged; only the client rendering of them changes. Reference look (islands + enclosed caves, organic non-anti-aliased silhouettes, textured fill): Worms Armageddon terrain art.
+
+---
+
+## 7. File-Level Change Summary
 
 | Area | Files |
 |---|---|
@@ -414,21 +463,24 @@ Inject `__BUILD_ID__` in `apps/client/vite.config.ts` via `define` (git short sh
 | Logger | **new** `packages/shared/src/log.ts`; export in `packages/shared/src/index.ts` |
 | Invariants | **new** `packages/shared/src/invariants.ts`; export in index |
 | Client capture | **new** `apps/client/src/debug/capture.ts`, `invariantWatch.ts`; edit `main.ts`, `MatchScene.ts`, `vite.config.ts` |
-| Server capture | **new** `apps/server/src/debug/debugStore.ts`; edit `index.ts` |
+| Server capture | **new** `apps/server/src/debug/debugStore.ts` (incl. retention/rotation); edit `index.ts` |
+| Visual critique | **new** `scripts/art-critique.mjs` |
+| Terrain art | `apps/client/src/render/Terrain.ts` |
 | CI tests | **new** `apps/server/tests/invariant-match.test.ts`, `replay-determinism.test.ts`; extend `tests/e2e` |
 
-## 7. Sequencing (for the implementation plan)
+## 8. Sequencing (for the implementation plan)
 1. Logger + invariants (shared foundation, no UI risk).
 2. Skull fix (+ test).
 3. Weapon fix (live-debug → dirty-check + server turn-check).
 4. Camera fixes.
 5. TurnHud redesign + HudBar/MatchScene rewire + dead-code deletion.
-6. Debug capture (client + server endpoint + build id).
-7. Regression suites (invariant runner, replay determinism, Playwright HUD).
+6. Debug capture (client + server endpoint w/ retention + build id).
+7. Visual-critique script, then terrain art polish (iterate against the critique loop).
+8. Regression suites (invariant runner, replay determinism, Playwright HUD).
 
 Each step gated by per-package typecheck + the relevant test suite (not repo-wide typecheck).
 
-## 8. Open Risks / Notes
+## 9. Open Risks / Notes
 - Weapon root-cause is a strong hypothesis but **must be confirmed live** before the fix lands (systematic-debugging).
 - Camera world-band constants (`WORLD_VIEW_TOP/BOTTOM`) and `ZOOM_SENSITIVITY` are tuning values; final numbers dialed in against the running game.
 - `/debug` PNG payloads can be large; body cap + `DEBUG_CAPTURE_ENABLED` keep production safe.
