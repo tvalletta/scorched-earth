@@ -72,7 +72,10 @@ export class MatchScene {
     this.app.stage.addChild(this.world);
 
     this.camera = new Camera(this.world, this.app);
-    window.addEventListener('resize', () => this.fitToLivingTanks());
+    window.addEventListener('resize', () => {
+      this.sky?.resize(window.innerWidth, window.innerHeight);
+      this.fitToLivingTanks();
+    });
 
     window.__room = room;
     window.__sessionId = room.sessionId;
