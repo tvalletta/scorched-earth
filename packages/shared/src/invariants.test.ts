@@ -27,10 +27,17 @@ describe("checkMatchInvariants", () => {
     const v = checkMatchInvariants({ ...baseState, currentTurnPlayerId: "ghost" });
     expect(v.map((x) => x.name)).toContain("turn-pointer");
   });
+  it("flags round out of range", () => {
+    const v = checkMatchInvariants({ ...baseState, round: 6 });
+    expect(v.map((x) => x.name)).toContain("round-range");
+  });
 });
 
 describe("checkCameraFinite", () => {
   it("flags non-finite scale", () => {
     expect(checkCameraFinite({ x: 0, y: 0, scale: NaN }).map((v) => v.name)).toContain("camera-finite");
+  });
+  it("passes a finite camera", () => {
+    expect(checkCameraFinite({ x: 0, y: 0, scale: 1 })).toEqual([]);
   });
 });
