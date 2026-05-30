@@ -1,9 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { generateTerrain, generateUnderside } from "./generate";
+import { generateTerrain, generateUnderside, generateCeiling } from "./generate";
+import { CAVE_MIN_GAP, CAVE_EDGE_SEAL } from "@se/shared";
 import type { TerrainType } from "@se/shared";
 
 const W = 1600;
 const H = 900;
+
+describe("generateCeiling", () => {
+  it("stays above the floor with the min gap mid-cave, sealed at the edges", () => {
+    const floor = generateTerrain({ seed: "cave", type: "flat", width: W, height: H });
+    const ceil = generateCeiling({ seed: "cave", type: "random", width: W, height: H }, floor);
+    expect(ceil.length).toBe(W);
+    for (let x = CAVE_EDGE_SEAL; x < W - CAVE_EDGE_SEAL; x++) {
+      expect((floor[x] as number) - (ceil[x] as number)).toBeGreaterThanOrEqual(CAVE_MIN_GAP - 1);
+    }
+    // sealed: near the edges the gap collapses toward zero
+    expect((floor[2] as number) - (ceil[2] as number)).toBeLessThan(40);
+    expect((floor[W - 3] as number) - (ceil[W - 3] as number)).toBeLessThan(40);
+  });
+});
 
 describe("generateUnderside", () => {
   it("returns an organic bottom below the surface that plunges at the edges", () => {

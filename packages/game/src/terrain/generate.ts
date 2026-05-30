@@ -1,6 +1,7 @@
 import { createPrng } from "../rng/prng";
 import type { TerrainOptions } from "../types";
 import type { TerrainType } from "@se/shared";
+import { CAVE_MIN_GAP, CAVE_EDGE_SEAL } from "@se/shared";
 
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
@@ -250,6 +251,26 @@ const generators: Record<TerrainType, (opts: TerrainOptions) => Int16Array> = {
 export function generateTerrain(opts: TerrainOptions): Int16Array {
   const gen = generators[opts.type] ?? genRandom;
   return gen(opts);
+}
+
+/**
+ * Cave ceiling for absorb mode: an organic rock roof above the floor with a
+ * guaranteed minimum air gap, sealing shut toward the left/right edges so the
+ * cave is enclosed. Returns ceiling-y per column (solid for y ≤ ceiling[x]).
+ */
+export function generateCeiling(opts: TerrainOptions, floor: Int16Array): Int16Array {
+  const { seed, width } = opts;
+  const o1 = buildOctave(seed + "-c1", 180, width);
+  const o2 = buildOctave(seed + "-c2", 70, width);
+  const out = new Int16Array(width);
+  for (let x = 0; x < width; x++) {
+    const noise = (o1[x] as number) * 0.65 + (o2[x] as number) * 0.35; // -1..1
+    let gap = CAVE_MIN_GAP + (noise + 1) * 120; // cavern height 280..520
+    const edgeDist = Math.min(x, width - 1 - x);
+    if (edgeDist < CAVE_EDGE_SEAL) gap *= edgeDist / CAVE_EDGE_SEAL; // seal the sides
+    out[x] = Math.max(0, Math.round((floor[x] as number) - gap));
+  }
+  return out;
 }
 
 /**
