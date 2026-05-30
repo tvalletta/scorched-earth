@@ -74,6 +74,26 @@ describe("stepProjectiles — core", () => {
     expect(result.events.some(e => e.kind === "out-of-bounds")).toBe(true);
   });
 
+  it("hits the cave ceiling when y <= ceiling[x] (tagged ceiling)", () => {
+    const terrain = new Int16Array(1600).fill(800); // floor low
+    const ceiling = new Int16Array(1600).fill(200);  // ceiling high
+    const p = makeProjectile({ x: 800, y: 190, vy: 0 }); // already at/inside ceiling rock
+    const result = stepProjectiles({ ...BASE_INPUT, terrain, ceiling, projectiles: [p], tanks: NO_TANKS });
+    const impact = result.events.find((e) => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    expect((impact as { layer?: string }).layer).toBe("ceiling");
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("passes through the air gap between ceiling and floor", () => {
+    const terrain = new Int16Array(1600).fill(800);
+    const ceiling = new Int16Array(1600).fill(200);
+    const p = makeProjectile({ x: 800, y: 500, vy: 0, vx: 50 }); // mid-gap
+    const result = stepProjectiles({ ...BASE_INPUT, terrain, ceiling, projectiles: [p], tanks: NO_TANKS });
+    expect(result.events.find((e) => e.kind === "terrain-impact")).toBeUndefined();
+    expect(result.survivors).toHaveLength(1);
+  });
+
   it("MIRV splits into a flat symmetric horizontal fan at apex", () => {
     // vy=-2 then +gravity crosses apex (prevVy<0, vy>=0) → split fires this step.
     const p = makeProjectile({ weapon: MIRV, x: 800, y: 100, vx: 0, vy: -2 });

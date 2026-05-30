@@ -211,6 +211,15 @@ export function stepProjectiles(input: StepInput): StepResult {
 
     if (shielded) continue;
 
+    // 5c. Cave ceiling collision (dual-heightmap; solid for y <= ceiling[x])
+    if (input.ceiling) {
+      const ci = Math.max(0, Math.min(input.ceiling.length - 1, Math.floor(p.x)));
+      if (p.y <= (input.ceiling[ci] as number)) {
+        events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId, layer: "ceiling" });
+        continue;
+      }
+    }
+
     // 6. Terrain collision
     const surfaceY = heightAt(terrain, p.x);
     if (p.y >= surfaceY) {

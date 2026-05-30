@@ -134,6 +134,12 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
     }
     if (y > SOFT_BOTTOM) { rawSamples.push({ x, y, t }); break; }
 
+    // Cave ceiling — the aim line stops at the rock roof too.
+    if (input.ceiling) {
+      const ci = Math.max(0, Math.min(input.ceiling.length - 1, Math.floor(x)));
+      if (y <= (input.ceiling[ci] as number)) { rawSamples.push({ x, y, t }); break; }
+    }
+
     const surfaceY = heightAt(terrain, x);
     if (y >= surfaceY) {
       const prev = rawSamples[rawSamples.length - 1]!;

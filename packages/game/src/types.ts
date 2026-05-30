@@ -76,6 +76,7 @@ export interface SimInput {
   wind: number;
   gravity: number;
   terrain: Int16Array;
+  ceiling?: Int16Array;
   terrainWidth: number;
   terrainHeight: number;
   wallMode: WallMode;
@@ -129,6 +130,7 @@ export interface StepInput {
   projectiles: LiveProjectile[];
   tanks: StepTankInfo[];
   terrain: Int16Array;
+  ceiling?: Int16Array;
   terrainWidth: number;
   terrainHeight: number;
   wind: number;
@@ -138,7 +140,7 @@ export interface StepInput {
 }
 
 export type StepEvent =
-  | { kind: "terrain-impact"; projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string }
+  | { kind: "terrain-impact"; projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string; layer?: "floor" | "ceiling" }
   | { kind: "shield-absorb"; projectileId: string; targetId: string;
       hpBefore: number; hpAfter: number; absorbed: number; overflow: number;
       ownerId: string }
