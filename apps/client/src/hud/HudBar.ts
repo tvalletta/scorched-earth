@@ -14,6 +14,17 @@ function humanize(id: string): string {
   return id.split('-').map((s) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)).join(' ');
 }
 
+// Icon per weapon type, shown in every carousel chip.
+const WEAPON_ICONS: Record<string, string> = {
+  'baby-missile': '🚀', 'missile': '🚀', 'baby-nuke': '☢️', 'nuke': '☢️',
+  'funky-bomb': '🎆', 'mirv': '🎇', 'deaths-head': '💀', 'deaths-knell': '☠️',
+  'triple-warhead': '🔱', 'pineapple': '🍍', 'funky-nuke': '🌀', 'plasma-ball': '🟣',
+  'plasma-blast': '💥', 'leapfrog': '🐸', 'roller': '🎳', 'heavy-roller': '🪨',
+  'laser': '⚡', 'plasma-wave': '🌊', 'tracer': '🎯', 'smoke': '💨',
+  'dirt-clod': '🟫', 'dirt-ball': '🟤', 'liquid-dirt': '💧', 'sandhog': '⛏️',
+  'tunneler': '🕳️', 'napalm': '🔥', 'hot-napalm': '🌶️', 'fireball': '☄️',
+};
+
 export class HudBar {
   el: HTMLDivElement;
   private onAimChange: ((angle: number, power: number) => void) | null = null;
@@ -45,9 +56,10 @@ export class HudBar {
     ].join('');
     this.el.innerHTML = this.buildHTML();
     document.getElementById('ui')!.appendChild(this.el);
+    this.carouselCenter = Math.max(0, this.weaponKeys.indexOf('baby-missile'));
     this.bindEvents();
     this.drawDial();
-    this.renderCarousel('baby-missile');
+    this.renderCarousel();
   }
 
   setAimChangeCallback(fn: (angle: number, power: number) => void): void { this.onAimChange = fn; }
@@ -61,18 +73,12 @@ export class HudBar {
     if (fireBtn) { fireBtn.disabled = !isMyTurn; fireBtn.style.opacity = isMyTurn ? '1' : '0.4'; }
 
     if (myTank) {
-      if (myTank.angle !== this.currentAngle) {
-        this.currentAngle = myTank.angle;
-        this.setAngleReadout();
-        this.drawDial();
-      }
-      if (myTank.power !== this.currentPower) {
-        this.currentPower = myTank.power;
-        this.setPowerReadout();
-      }
+      // The local HUD owns angle/power/weapon-selection — do NOT sync them back
+      // from server state every frame (that clobbered keyboard input + carousel
+      // scrolling). Only refresh ammo counts and re-render the carousel at its
+      // current position.
       this.localInventory = new Map(myTank.inventory.entries());
-      this.selectedKey = myTank.weaponId || this.selectedKey || 'baby-missile';
-      this.renderCarousel(this.selectedKey);
+      this.renderCarousel();
     }
   }
 
@@ -329,44 +335,55 @@ export class HudBar {
   }
 
   private scrollCarousel(delta: number): void {
-    this.carouselCenter = (this.carouselCenter + delta + this.weaponKeys.length) % this.weaponKeys.length;
-    const key = this.weaponKeys[this.carouselCenter]!;
-    this.selectedKey = key;
-    this.room.send('select-weapon', { weaponId: key });
-    this.renderCarousel(key);
+    const n = this.weaponKeys.length;
+    this.carouselCenter = (this.carouselCenter + delta + n) % n; // wraps forever
+    this.selectedKey = this.weaponKeys[this.carouselCenter]!;
+    this.room.send('select-weapon', { weaponId: this.selectedKey });
+    this.renderCarousel();
   }
 
-  private renderCarousel(selectedKey: string): void {
-    const idx = this.weaponKeys.indexOf(selectedKey);
-    if (idx >= 0) this.carouselCenter = idx;
+  private selectWeaponAt(index: number): void {
+    const n = this.weaponKeys.length;
+    this.carouselCenter = ((index % n) + n) % n;
+    this.selectedKey = this.weaponKeys[this.carouselCenter]!;
+    this.room.send('select-weapon', { weaponId: this.selectedKey });
+    this.renderCarousel();
+  }
+
+  // Windowed, infinitely-wrapping carousel that fills the width between the
+  // arrows; every chip shows its weapon icon + ammo so you can see what's next.
+  private renderCarousel(): void {
     const container = this.el.querySelector<HTMLDivElement>('#hud-carousel');
     if (!container) return;
     const total = this.weaponKeys.length;
-    const slots: Array<{ key: string; offset: number }> = [];
-    for (let offset = -2; offset <= 2; offset++) {
-      slots.push({ key: this.weaponKeys[(this.carouselCenter + offset + total) % total]!, offset });
-    }
-    container.innerHTML = slots.map(({ key, offset }) => {
+    const HALF = 4; // 9 chips across the bar
+    let html = '';
+    for (let offset = -HALF; offset <= HALF; offset++) {
+      const key = this.weaponKeys[(this.carouselCenter + offset + total) % total]!;
       const isCenter = offset === 0;
+      const dist = Math.abs(offset);
       const ammo = this.localInventory.get(key);
-      const ammoStr = ammo === undefined || ammo < 0 ? '∞' : `×${ammo}`;
-      const name = humanize(key);
-      const w = isCenter ? 150 : 44;
-      const border = isCenter ? '2px solid #ff8c00' : '1px solid rgba(255,255,255,0.15)';
-      const opacity = isCenter ? '1' : Math.abs(offset) === 1 ? '0.7' : '0.4';
-      return `<div data-weapon-key="${key}" style="min-width:${w}px;height:${isCenter ? 56 : 40}px;
-        border:${border};border-radius:8px;background:rgba(0,0,0,0.5);opacity:${opacity};cursor:pointer;
-        display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;
-        padding:2px 8px;box-sizing:border-box;transition:all 0.1s;">
-        <span style="font:bold ${isCenter ? 12 : 9}px system-ui;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${isCenter ? name : name.split(' ').map((s) => s[0]).join('')}</span>
-        ${isCenter ? `<span style="font:bold 10px monospace;color:#ff8c00;">${ammoStr}</span>` : ''}
+      const ammoStr = ammo === undefined || ammo < 0 ? '∞' : String(ammo);
+      const icon = WEAPON_ICONS[key] ?? '💣';
+      const iconSize = isCenter ? 28 : dist === 1 ? 23 : 20;
+      const opacity = isCenter ? '1' : dist === 1 ? '0.8' : dist === 2 ? '0.6' : '0.42';
+      const border = isCenter ? '2px solid #ff8c00' : '1px solid rgba(255,255,255,0.12)';
+      const bg = isCenter ? 'rgba(255,140,0,0.14)' : 'rgba(0,0,0,0.4)';
+      const ammoColor = ammo === 0 ? '#64748b' : '#ff8c00';
+      html += `<div data-weapon-key="${key}" title="${humanize(key)}" style="flex:1 1 0;min-width:0;max-width:120px;height:62px;
+        border:${border};border-radius:8px;background:${bg};opacity:${opacity};cursor:pointer;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+        padding:2px;box-sizing:border-box;transition:all 0.1s;overflow:hidden;">
+        <span style="font-size:${iconSize}px;line-height:1;">${icon}</span>
+        ${isCenter ? `<span style="font:bold 8px system-ui;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${humanize(key)}</span>` : ''}
+        <span style="font:bold ${isCenter ? 10 : 8}px monospace;color:${ammoColor};">${ammoStr}</span>
       </div>`;
-    }).join('');
+    }
+    container.innerHTML = html;
     container.querySelectorAll<HTMLDivElement>('[data-weapon-key]').forEach((card) => {
       card.addEventListener('click', () => {
-        const key = card.dataset.weaponKey!;
-        const i = this.weaponKeys.indexOf(key);
-        if (i >= 0) { this.carouselCenter = i; this.selectedKey = key; this.room.send('select-weapon', { weaponId: key }); this.renderCarousel(key); }
+        const i = this.weaponKeys.indexOf(card.dataset.weaponKey!);
+        if (i >= 0) this.selectWeaponAt(i);
       });
     });
   }
