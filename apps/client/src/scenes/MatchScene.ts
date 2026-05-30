@@ -221,6 +221,8 @@ export class MatchScene {
       if (!seed) return;
       if (this.terrain) this.terrain.removeFromParent();
       const t = new TerrainRenderer(seed, state.terrainType as TerrainType);
+      // Cave (absorb): regenerate the same ceiling the server used.
+      if (state.hasCeiling && state.ceilingSeed) t.setCeiling(state.ceilingSeed);
       this.world.addChildAt(t, 0); // terrain at back of world (sky is now on stage, not world)
       this.terrain = t;
     };
@@ -247,9 +249,16 @@ export class MatchScene {
     $(state).listen("phase", (phase: MatchPhase) => {
       this.onPhaseChange(phase);
     });
+    // Cave ceiling tracks the round (absorb regenerates it; other modes clear).
+    $(state).listen("ceilingSeed", (seed: string) => {
+      if (state.hasCeiling && seed) this.terrain?.setCeiling(seed);
+      else this.terrain?.clearCeiling();
+    });
 
+    // Energy cage shows for reflect; absorb uses the rock cave as its boundary.
     $(state).listen("wallMode", (mode) => {
-      this.cage.update(mode, PLAY_CEILING_Y, TERRAIN_HEIGHT + PLAY_FLOOR_MARGIN);
+      const cageMode = state.hasCeiling ? "none" : mode;
+      this.cage.update(cageMode, PLAY_CEILING_Y, TERRAIN_HEIGHT + PLAY_FLOOR_MARGIN);
     }, true);
     $(state).terrainOps.onAdd((op) => {
       const particles = this.terrain?.carve(op);

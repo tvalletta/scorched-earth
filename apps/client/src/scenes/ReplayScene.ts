@@ -20,7 +20,7 @@ export interface RoundRecord {
   carveOps: SerializedCarveOp[];
 }
 export interface IntentRecord { ts: number; playerId: string; kind: string; payload: unknown; }
-export interface SerializedCarveOp { x: number; y: number; radius: number; tick: number; }
+export interface SerializedCarveOp { x: number; y: number; radius: number; tick: number; layer?: string; }
 
 type TankSnapshot = {
   x: number; y: number; hp: number; alive: boolean;
@@ -85,17 +85,20 @@ export class ReplayScene {
     const snap = round.snapshot as {
       terrainSeed: string;
       terrainType: string;
+      hasCeiling?: boolean;
+      ceilingSeed?: string;
       wind: number;
       tanks: Record<string, TankSnapshot>;
     };
 
     const t = new TerrainRenderer(snap.terrainSeed, snap.terrainType as TerrainType);
+    if (snap.hasCeiling && snap.ceilingSeed) t.setCeiling(snap.ceilingSeed);
     this.world.addChildAt(t, 1);
     this.terrain = t;
 
     // Apply carve ops silently (discard returned particle containers)
     for (const op of round.carveOps) {
-      this.terrain.carve({ x: op.x, y: op.y, radius: op.radius, tick: op.tick });
+      this.terrain.carve({ x: op.x, y: op.y, radius: op.radius, tick: op.tick, layer: op.layer });
     }
 
     // Render tanks at snapshot positions
