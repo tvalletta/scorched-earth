@@ -74,6 +74,19 @@ describe("stepProjectiles — core", () => {
     expect(result.events.some(e => e.kind === "out-of-bounds")).toBe(true);
   });
 
+  it("MIRV splits into a flat symmetric horizontal fan at apex", () => {
+    // vy=-2 then +gravity crosses apex (prevVy<0, vy>=0) → split fires this step.
+    const p = makeProjectile({ weapon: MIRV, x: 800, y: 100, vx: 0, vy: -2 });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: NO_TANKS });
+    const kids = result.spawned;
+    expect(kids).toHaveLength(5);
+    const vxs = kids.map((k) => k.vx).sort((a, b) => a - b);
+    expect(vxs[0]!).toBeLessThan(0); // leftmost goes left
+    expect(vxs[vxs.length - 1]!).toBeGreaterThan(0); // rightmost goes right
+    expect(Math.abs(vxs[0]! + vxs[vxs.length - 1]!)).toBeLessThan(40); // symmetric
+    expect(kids.every((k) => k.vy <= 0)).toBe(true); // slight upward lift at burst
+  });
+
   it("handles multiple simultaneous projectiles independently", () => {
     const p1 = makeProjectile({ id: "p1", x: 400 });
     const p2 = makeProjectile({ id: "p2", x: 1200 });

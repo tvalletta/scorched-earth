@@ -19,16 +19,21 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
   const split = parent.weapon.split;
   if (!split) return [];
   const children: LiveProjectile[] = [];
+  const LIFT = 60; // small constant upward lift so the flat fan arcs before raining down
   for (let i = 0; i < split.count; i++) {
-    const deg =
-      split.spreadDeg >= 360
-        ? i * (360 / split.count)
-        : split.count === 1
-        ? split.centerDeg
-        : split.centerDeg - split.spreadDeg / 2 + i * (split.spreadDeg / (split.count - 1));
-    const rad = (deg * Math.PI) / 180;
-    const ejVx = Math.cos(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
-    const ejVy = Math.sin(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vy : 0);
+    let ejVx: number;
+    let ejVy: number;
+    if (split.spreadDeg >= 360) {
+      // Full ring (kept for any weapon that wants an all-directions burst).
+      const rad = (i * (360 / split.count) * Math.PI) / 180;
+      ejVx = Math.cos(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
+      ejVy = Math.sin(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vy : 0);
+    } else {
+      // Flat horizontal fan: vx spread evenly across [-speed .. +speed], slight lift.
+      const frac = split.count === 1 ? 0.5 : i / (split.count - 1);
+      ejVx = (-1 + 2 * frac) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
+      ejVy = -LIFT + (split.inheritVelocity ? parent.vy * 0.3 : 0);
+    }
     children.push({
       id: `${parent.id}-child-${i}`,
       x, y,
