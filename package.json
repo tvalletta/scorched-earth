@@ -16,6 +16,7 @@
     "loadtest": "pnpm --filter @se/loadtest start"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@playwright/test": "^1.60.0",
     "typescript": "^5.4.0"
   }
