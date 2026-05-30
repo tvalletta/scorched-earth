@@ -56,6 +56,27 @@ export function carveInPlace(
   }
 }
 
+/**
+ * Carves a crater into the cave ceiling. The ceiling is the underside of the
+ * upper rock (solid for y ≤ ceiling[x]); a hit removes rock so the ceiling
+ * recedes UPWARD — the mirror of carveInPlace's downward floor crater.
+ */
+export function carveCeilingInPlace(ceiling: Int16Array, op: CarveOp): void {
+  const { x: cx, y: cy, radius } = op;
+  const xMin = Math.max(0, Math.floor(cx - radius));
+  const xMax = Math.min(ceiling.length - 1, Math.ceil(cx + radius));
+  for (let i = xMin; i <= xMax; i++) {
+    const dx = i - cx;
+    const dy2 = radius * radius - dx * dx;
+    if (dy2 < 0) continue;
+    const circleTop = cy - Math.sqrt(dy2);
+    const currentCeiling = ceiling[i] as number;
+    if (circleTop < currentCeiling) {
+      ceiling[i] = Math.max(0, Math.round(circleTop));
+    }
+  }
+}
+
 export function applyCarve(
   terrain: Int16Array,
   op: CarveOp,

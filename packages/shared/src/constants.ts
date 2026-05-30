@@ -10,13 +10,23 @@ export const COLORS = [
 ] as const;
 export type TankColor = typeof COLORS[number];
 
-export const HATS = ["none", "chef", "top-hat", "beanie"] as const;
+export const HATS = ["none", "helm", "chef", "tophat", "beanie", "cowboy", "party", "viking", "santa"] as const;
 export type TankHat = typeof HATS[number];
+
+// Vertical projectile play bounds (relative to the terrain). Generous so high
+// lobs and low passes stay in play longer; the cosmetic floating-island
+// underside fills the space below the surface.
+export const PLAY_CEILING_Y = -600;       // remove projectiles that rise above this y
+export const PLAY_FLOOR_MARGIN = 500;     // soft bottom = terrainHeight + this
+
+// Cave (absorb mode) dual-heightmap tuning.
+export const CAVE_MIN_GAP = 280;     // minimum vertical air gap floor − ceiling
+export const CAVE_EDGE_SEAL = 140;   // px at each side where the cave seals shut
 
 export const DEFAULT_MAX_ROUNDS = 5;
 export const DEFAULT_STARTING_CASH = 10_000;
 export const ROUND_SUMMARY_DURATION_MS = 5_000;
-export const SHOP_DURATION_MS = 30_000;
+export const SHOP_DURATION_MS = 45_000;
 export const DAMAGE_REWARD_RATE = 100;   // $ per damage point dealt
 export const KILL_REWARD = 1_000;        // $ per kill
 export const SURVIVAL_BONUS = 500;       // $ for surviving the round

@@ -1,4 +1,5 @@
 import type { LiveProjectile, StepInput, StepResult, StepEvent } from "../types";
+import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
 
 const WIND_ACCEL_SCALE = 5.0;
 const ROLLER_SPEED = 200; // px/s
@@ -18,16 +19,21 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
   const split = parent.weapon.split;
   if (!split) return [];
   const children: LiveProjectile[] = [];
+  const LIFT = 60; // small constant upward lift so the flat fan arcs before raining down
   for (let i = 0; i < split.count; i++) {
-    const deg =
-      split.spreadDeg >= 360
-        ? i * (360 / split.count)
-        : split.count === 1
-        ? split.centerDeg
-        : split.centerDeg - split.spreadDeg / 2 + i * (split.spreadDeg / (split.count - 1));
-    const rad = (deg * Math.PI) / 180;
-    const ejVx = Math.cos(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
-    const ejVy = Math.sin(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vy : 0);
+    let ejVx: number;
+    let ejVy: number;
+    if (split.spreadDeg >= 360) {
+      // Full ring (kept for any weapon that wants an all-directions burst).
+      const rad = (i * (360 / split.count) * Math.PI) / 180;
+      ejVx = Math.cos(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
+      ejVy = Math.sin(rad) * split.ejectionSpeed + (split.inheritVelocity ? parent.vy : 0);
+    } else {
+      // Flat horizontal fan: vx spread evenly across [-speed .. +speed], slight lift.
+      const frac = split.count === 1 ? 0.5 : i / (split.count - 1);
+      ejVx = (-1 + 2 * frac) * split.ejectionSpeed + (split.inheritVelocity ? parent.vx : 0);
+      ejVy = -LIFT + (split.inheritVelocity ? parent.vy * 0.3 : 0);
+    }
     children.push({
       id: `${parent.id}-child-${i}`,
       x, y,
@@ -42,7 +48,7 @@ function spawnMirvChildren(parent: LiveProjectile, x: number, y: number): LivePr
 
 export function stepProjectiles(input: StepInput): StepResult {
   const { projectiles, tanks, terrain, terrainWidth, terrainHeight, wind, gravity, dt, wallMode } = input;
-  const SOFT_BOTTOM = terrainHeight + 200;
+  const SOFT_BOTTOM = terrainHeight + PLAY_FLOOR_MARGIN;
 
   const survivors: LiveProjectile[] = [];
   const spawned: LiveProjectile[] = [];
@@ -122,7 +128,7 @@ export function stepProjectiles(input: StepInput): StepResult {
     }
 
     // 4. Out-of-bounds — top/soft-bottom always remove; left/right use wallMode
-    if (p.y < -200) {
+    if (p.y < PLAY_CEILING_Y) {
       events.push({ kind: "out-of-bounds", projectileId: p.id });
       continue;
     }
@@ -204,6 +210,15 @@ export function stepProjectiles(input: StepInput): StepResult {
     }
 
     if (shielded) continue;
+
+    // 5c. Cave ceiling collision (dual-heightmap; solid for y <= ceiling[x])
+    if (input.ceiling) {
+      const ci = Math.max(0, Math.min(input.ceiling.length - 1, Math.floor(p.x)));
+      if (p.y <= (input.ceiling[ci] as number)) {
+        events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId, layer: "ceiling" });
+        continue;
+      }
+    }
 
     // 6. Terrain collision
     const surfaceY = heightAt(terrain, p.x);

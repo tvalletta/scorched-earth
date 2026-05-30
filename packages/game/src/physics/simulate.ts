@@ -1,5 +1,6 @@
 import type { SimInput, TrajectoryResult, TrajectorySample, SplitDef } from "../types";
 import { computeDamage } from "./damage";
+import { PLAY_FLOOR_MARGIN } from "@se/shared";
 
 const DT_MS = 1000 / 60;
 const MAX_DURATION_MS = 8000;
@@ -65,7 +66,7 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
     initialVelocity,
   } = input;
 
-  const SOFT_BOTTOM = terrainHeight + 200;
+  const SOFT_BOTTOM = terrainHeight + PLAY_FLOOR_MARGIN;
 
   let { vx, vy } = initialVelocity ?? initialVelocityFromAnglePower(angle, power);
   const dtSec = DT_MS / 1000;
@@ -132,6 +133,12 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
       }
     }
     if (y > SOFT_BOTTOM) { rawSamples.push({ x, y, t }); break; }
+
+    // Cave ceiling — the aim line stops at the rock roof too.
+    if (input.ceiling) {
+      const ci = Math.max(0, Math.min(input.ceiling.length - 1, Math.floor(x)));
+      if (y <= (input.ceiling[ci] as number)) { rawSamples.push({ x, y, t }); break; }
+    }
 
     const surfaceY = heightAt(terrain, x);
     if (y >= surfaceY) {

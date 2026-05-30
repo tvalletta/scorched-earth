@@ -1,6 +1,7 @@
 import { createPrng } from "../rng/prng";
 import type { TerrainOptions } from "../types";
 import type { TerrainType } from "@se/shared";
+import { CAVE_MIN_GAP, CAVE_EDGE_SEAL } from "@se/shared";
 
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
@@ -250,4 +251,46 @@ const generators: Record<TerrainType, (opts: TerrainOptions) => Int16Array> = {
 export function generateTerrain(opts: TerrainOptions): Int16Array {
   const gen = generators[opts.type] ?? genRandom;
   return gen(opts);
+}
+
+/**
+ * Cave ceiling for absorb mode: an organic rock roof above the floor with a
+ * guaranteed minimum air gap, sealing shut toward the left/right edges so the
+ * cave is enclosed. Returns ceiling-y per column (solid for y ≤ ceiling[x]).
+ */
+export function generateCeiling(opts: TerrainOptions, floor: Int16Array): Int16Array {
+  const { seed, width } = opts;
+  const o1 = buildOctave(seed + "-c1", 180, width);
+  const o2 = buildOctave(seed + "-c2", 70, width);
+  const out = new Int16Array(width);
+  for (let x = 0; x < width; x++) {
+    const noise = (o1[x] as number) * 0.65 + (o2[x] as number) * 0.35; // -1..1
+    let gap = CAVE_MIN_GAP + (noise + 1) * 120; // cavern height 280..520
+    const edgeDist = Math.min(x, width - 1 - x);
+    if (edgeDist < CAVE_EDGE_SEAL) gap *= edgeDist / CAVE_EDGE_SEAL; // seal the sides
+    out[x] = Math.max(0, Math.round((floor[x] as number) - gap));
+  }
+  return out;
+}
+
+/**
+ * Cosmetic underside profile for the floating island: organic octave noise
+ * (like the top surface) plus a U-shaped term so the left/right edges plunge
+ * — the island "drops off the face" rather than ending in a vertical cut.
+ * Returns bottom-y per column (larger y = deeper).
+ */
+export function generateUnderside(seed: string, width: number, avgSurface: number): Int16Array {
+  const o1 = buildOctave(seed + "-u1", 220, width);
+  const o2 = buildOctave(seed + "-u2", 90, width);
+  const o3 = buildOctave(seed + "-u3", 40, width);
+  const out = new Int16Array(width);
+  const baseDepth = 300;
+  const amp = 120;
+  for (let x = 0; x < width; x++) {
+    const t = x / (width - 1);
+    const noise = (o1[x] as number) * 0.6 + (o2[x] as number) * 0.3 + (o3[x] as number) * 0.1;
+    const edge = Math.pow(Math.abs(t - 0.5) * 2, 2.2) * 260; // plunge toward both edges
+    out[x] = Math.round(avgSurface + baseDepth + noise * amp + edge);
+  }
+  return out;
 }

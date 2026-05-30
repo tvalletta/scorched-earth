@@ -1,5 +1,5 @@
 import { Application } from "pixi.js";
-import { LobbyScene } from "./scenes/LobbyScene";
+import { LobbyController } from "./scenes/LobbyController";
 
 declare global {
   interface Window { pixiApp?: Application }
@@ -10,7 +10,7 @@ async function main() {
   await app.init({ resizeTo: window, background: 0xa6e1fa, antialias: true });
   document.getElementById("app")!.appendChild(app.canvas);
   window.pixiApp = app;
-  new LobbyScene();
+  await new LobbyController(app).enter();
 }
 
 main().catch(console.error);

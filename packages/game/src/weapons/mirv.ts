@@ -22,7 +22,7 @@ export const MIRV: WeaponDef = {
     spreadDeg: 120,
     centerDeg: 90,
     inheritVelocity: true,
-    ejectionSpeed: 300,
+    ejectionSpeed: 260,
     child: MIRV_SUB,
   },
 };

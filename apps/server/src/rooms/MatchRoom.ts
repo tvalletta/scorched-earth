@@ -1,6 +1,6 @@
 import { Room, type Client } from "colyseus";
 import {
-  MatchState, Tank, PendingEffect, AiSlot,
+  MatchState, Tank, PendingEffect, AiSlot, Observer,
   DEFAULT_TURN_TIMER_MS, MAX_PLAYERS,
   TERRAIN_WIDTH, TERRAIN_HEIGHT,
   RECONNECT_GRACE_SEC,
@@ -14,7 +14,7 @@ import {
   type TerrainType, type WallMode, type AiDifficulty,
 } from "@se/shared";
 import {
-  generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
+  generateTerrain, generateCeiling, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
   stepProjectiles, processPendingEffects, type LiveProjectile,
   AI_NAME_POOLS,
   think, AI_PROFILES, shopForAi,
@@ -26,6 +26,10 @@ import {
   applyFallDamage, commitTurnEnd,
 } from "./tickLoop.js";
 import { randomSlots } from "./placement.js";
+import { applySetIdentity } from "./identity.js";
+
+// Spectator connection headroom beyond the MAX_PLAYERS combatant cap.
+const MAX_OBSERVERS = 8;
 import { ReplayRecorder } from "./ReplayRecorder.js";
 import { storeReplay } from "./replayStore.js";
 
@@ -37,8 +41,9 @@ interface JoinOptions {
 }
 
 export class MatchRoom extends Room<MatchState> {
-  override maxClients = MAX_PLAYERS;
+  override maxClients = MAX_PLAYERS + MAX_OBSERVERS;
   private terrain: Int16Array = new Int16Array(0);
+  private ceiling: Int16Array | null = null;
   private timeoutHandle: { clear: () => void } | null = null;
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
@@ -93,7 +98,7 @@ export class MatchRoom extends Room<MatchState> {
       const difficulty = String(msg?.difficulty ?? "shooter");
       if (!(ALL_AI_DIFFICULTIES as string[]).includes(difficulty)) return;
       const totalSlots = this.state.tanks.size + this.state.aiSlots.length;
-      if (totalSlots >= this.maxClients) return;
+      if (totalSlots >= MAX_PLAYERS) return;
       const slot = new AiSlot();
       slot.sessionId = "ai-" + this.state.aiSlots.length;
       slot.difficulty = difficulty;
@@ -129,6 +134,10 @@ export class MatchRoom extends Room<MatchState> {
       if (client.sessionId !== this.state.hostId) return;
       if (this.state.phase !== "lobby") return;
       this.startMatch();
+    });
+
+    this.onMessage("set-identity", (client, msg: { nickname?: string; color?: string; hat?: string }) => {
+      applySetIdentity(this.state, client.sessionId, msg);
     });
 
     this.onMessage("fire", (client, msg: { angle: number; power: number }) => {
@@ -269,6 +278,7 @@ export class MatchRoom extends Room<MatchState> {
       broadcast: (ev, payload) => this.broadcast(ev, payload),
       schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
       terrain: this.terrain,
+      ceiling: this.ceiling,
       onTurnReady: () => {
         this.runPendingEffects();
         this.armTurnTimer();
@@ -327,6 +337,7 @@ export class MatchRoom extends Room<MatchState> {
       projectiles: this.liveProjectiles,
       tanks: buildStepTanks(this.state),
       terrain: this.terrain,
+      ceiling: this.ceiling ?? undefined,
       terrainWidth: TERRAIN_WIDTH,
       terrainHeight: TERRAIN_HEIGHT,
       wind: this.state.wind,
@@ -462,9 +473,15 @@ export class MatchRoom extends Room<MatchState> {
   }
 
   onJoin(client: Client, options: JoinOptions): void {
-    // If game is already in progress or room is at tank capacity, treat as observer
-    if (this.state.phase !== "lobby" || this.state.tanks.size >= this.maxClients) {
+    // If game is already in progress or combatant slots (humans + AI) are full,
+    // treat the joiner as an observer/spectator.
+    const combatants = this.state.tanks.size + this.state.aiSlots.length;
+    if (this.state.phase !== "lobby" || combatants >= MAX_PLAYERS) {
       this.observers.add(client.sessionId);
+      const obs = new Observer();
+      obs.sessionId = client.sessionId;
+      obs.nickname = (options.nickname ?? "Spectator").slice(0, 24);
+      this.state.observers.push(obs);
       return;
     }
 
@@ -487,6 +504,8 @@ export class MatchRoom extends Room<MatchState> {
   async onLeave(client: Client, consented: boolean): Promise<void> {
     if (this.observers.has(client.sessionId)) {
       this.observers.delete(client.sessionId);
+      const i = this.state.observers.findIndex(o => o.sessionId === client.sessionId);
+      if (i !== -1) this.state.observers.splice(i, 1);
       return;
     }
 
@@ -594,6 +613,23 @@ export class MatchRoom extends Room<MatchState> {
     this.state.wallMode = prng.pick(modesPool);
   }
 
+  /** Generate (or clear) the cave ceiling for the current wall mode. Call
+   *  after this.terrain is set and before placing tanks. */
+  private applyCave(): void {
+    if (this.state.wallMode === "absorb") {
+      this.state.hasCeiling = true;
+      this.state.ceilingSeed = this.state.terrainSeed + "_ceiling";
+      this.ceiling = generateCeiling(
+        { seed: this.state.ceilingSeed, type: "random", width: TERRAIN_WIDTH, height: TERRAIN_HEIGHT },
+        this.terrain,
+      );
+    } else {
+      this.state.hasCeiling = false;
+      this.state.ceilingSeed = "";
+      this.ceiling = null;
+    }
+  }
+
   private startMatch(): void {
     this.matchSeed = this.state.roomCode || "match";
     this.state.round = 1;
@@ -609,6 +645,7 @@ export class MatchRoom extends Room<MatchState> {
       height: TERRAIN_HEIGHT,
     });
     this.terrain = terrain;
+    this.applyCave();
     this.createAiTanks();
     this.placeTanksOn(terrain);
     this.seedInventory();
@@ -626,7 +663,7 @@ export class MatchRoom extends Room<MatchState> {
   private placeTanksOn(terrain: Int16Array): void {
     const tanks = Array.from(this.state.tanks.values());
     if (tanks.length === 0) return;
-    const xs = randomSlots(tanks.length, terrain);
+    const xs = randomSlots(tanks.length, terrain, 120, { ceiling: this.ceiling ?? undefined });
     const shuffled = [...tanks].sort(() => Math.random() - 0.5);
     shuffled.forEach((tank, i) => {
       tank.x = xs[i]!;
@@ -740,6 +777,7 @@ export class MatchRoom extends Room<MatchState> {
       height: TERRAIN_HEIGHT,
     });
     this.terrain = terrain;
+    this.applyCave();
 
     const windPrng = createPrng(state.terrainSeed + "_wind");
     state.wind = windPrng.nextInt(-10, 10);

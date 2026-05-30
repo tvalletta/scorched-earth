@@ -69,9 +69,42 @@ describe("stepProjectiles — core", () => {
   });
 
   it("emits out-of-bounds when projectile falls below soft bottom", () => {
-    const p = makeProjectile({ x: 800, y: 1099, vy: 200 }); // SOFT_BOTTOM = 900+200=1100
+    const p = makeProjectile({ x: 800, y: 1399, vy: 200 }); // SOFT_BOTTOM = 900+500=1400
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: NO_TANKS });
     expect(result.events.some(e => e.kind === "out-of-bounds")).toBe(true);
+  });
+
+  it("hits the cave ceiling when y <= ceiling[x] (tagged ceiling)", () => {
+    const terrain = new Int16Array(1600).fill(800); // floor low
+    const ceiling = new Int16Array(1600).fill(200);  // ceiling high
+    const p = makeProjectile({ x: 800, y: 190, vy: 0 }); // already at/inside ceiling rock
+    const result = stepProjectiles({ ...BASE_INPUT, terrain, ceiling, projectiles: [p], tanks: NO_TANKS });
+    const impact = result.events.find((e) => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    expect((impact as { layer?: string }).layer).toBe("ceiling");
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("passes through the air gap between ceiling and floor", () => {
+    const terrain = new Int16Array(1600).fill(800);
+    const ceiling = new Int16Array(1600).fill(200);
+    const p = makeProjectile({ x: 800, y: 500, vy: 0, vx: 50 }); // mid-gap
+    const result = stepProjectiles({ ...BASE_INPUT, terrain, ceiling, projectiles: [p], tanks: NO_TANKS });
+    expect(result.events.find((e) => e.kind === "terrain-impact")).toBeUndefined();
+    expect(result.survivors).toHaveLength(1);
+  });
+
+  it("MIRV splits into a flat symmetric horizontal fan at apex", () => {
+    // vy=-2 then +gravity crosses apex (prevVy<0, vy>=0) → split fires this step.
+    const p = makeProjectile({ weapon: MIRV, x: 800, y: 100, vx: 0, vy: -2 });
+    const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: NO_TANKS });
+    const kids = result.spawned;
+    expect(kids).toHaveLength(5);
+    const vxs = kids.map((k) => k.vx).sort((a, b) => a - b);
+    expect(vxs[0]!).toBeLessThan(0); // leftmost goes left
+    expect(vxs[vxs.length - 1]!).toBeGreaterThan(0); // rightmost goes right
+    expect(Math.abs(vxs[0]! + vxs[vxs.length - 1]!)).toBeLessThan(40); // symmetric
+    expect(kids.every((k) => k.vy <= 0)).toBe(true); // slight upward lift at burst
   });
 
   it("handles multiple simultaneous projectiles independently", () => {
@@ -342,8 +375,8 @@ describe("stepProjectiles — wall modes", () => {
     expect(result.survivors).toHaveLength(0);
   });
 
-  it("none — top OOB (y < -200) emits out-of-bounds", () => {
-    const p = makeProjectile({ x: 800, y: -250, vx: 0, vy: -100 });
+  it("none — top OOB (y < -600) emits out-of-bounds", () => {
+    const p = makeProjectile({ x: 800, y: -650, vx: 0, vy: -100 });
     const result = stepProjectiles({ ...BASE, wallMode: "none", projectiles: [p] });
     expect(result.events.find((e) => e.kind === "out-of-bounds")).toBeDefined();
     expect(result.survivors).toHaveLength(0);

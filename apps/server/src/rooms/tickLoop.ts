@@ -1,7 +1,7 @@
 import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS } from "@se/shared";
 import {
   computeFallDamage, BABY_MISSILE,
-  computeDamage, carveInPlace,
+  computeDamage, carveInPlace, carveCeilingInPlace,
   type LiveProjectile, type StepTankInfo, type StepEvent,
 } from "@se/game";
 import { nextTurnPlayerId } from "./turnController.js";
@@ -40,9 +40,14 @@ export function applyStepEvent(
     const { x, y, weapon, ownerId } = event;
     const op = new CarveOp();
     op.x = Math.round(x); op.y = Math.round(y); op.radius = weapon.radius; op.tick = state.tick + 1;
+    op.layer = event.layer ?? "floor";
     state.terrainOps.push(op);
     state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    if (op.layer === "ceiling" && ctx.ceiling) {
+      carveCeilingInPlace(ctx.ceiling, op);
+    } else {
+      carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    }
 
     const aliveBefore = new Set(Array.from(state.tanks.values()).filter(t => t.alive).map(t => t.sessionId));
     const targets = Array.from(state.tanks.values())

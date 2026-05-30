@@ -1,9 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { generateTerrain } from "./generate";
+import { generateTerrain, generateUnderside, generateCeiling } from "./generate";
+import { CAVE_MIN_GAP, CAVE_EDGE_SEAL } from "@se/shared";
 import type { TerrainType } from "@se/shared";
 
 const W = 1600;
 const H = 900;
+
+describe("generateCeiling", () => {
+  it("stays above the floor with the min gap mid-cave, sealed at the edges", () => {
+    const floor = generateTerrain({ seed: "cave", type: "flat", width: W, height: H });
+    const ceil = generateCeiling({ seed: "cave", type: "random", width: W, height: H }, floor);
+    expect(ceil.length).toBe(W);
+    for (let x = CAVE_EDGE_SEAL; x < W - CAVE_EDGE_SEAL; x++) {
+      expect((floor[x] as number) - (ceil[x] as number)).toBeGreaterThanOrEqual(CAVE_MIN_GAP - 1);
+    }
+    // sealed: near the edges the gap collapses toward zero
+    expect((floor[2] as number) - (ceil[2] as number)).toBeLessThan(40);
+    expect((floor[W - 3] as number) - (ceil[W - 3] as number)).toBeLessThan(40);
+  });
+});
+
+describe("generateUnderside", () => {
+  it("returns an organic bottom below the surface that plunges at the edges", () => {
+    const u = generateUnderside("seed-1", W, 500); // avgSurface = 500
+    expect(u.length).toBe(W);
+    for (let x = 0; x < W; x++) expect(u[x]!).toBeGreaterThan(500); // below the surface
+    // edges plunge: they are not shallower than the middle's shallowest point
+    const midSlice = Array.from(u.slice(Math.floor(W * 0.4), Math.floor(W * 0.6)));
+    const midMin = Math.min(...midSlice);
+    expect(Math.max(u[5]!, u[W - 6]!)).toBeGreaterThan(midMin - 1);
+  });
+});
 
 const ALL_TYPES: TerrainType[] = [
   "mountains", "hills", "valleys", "cliffs", "crater",

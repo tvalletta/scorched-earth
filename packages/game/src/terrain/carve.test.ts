@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { carveInPlace, applyCarve } from "./carve";
+import { carveInPlace, applyCarve, carveCeilingInPlace } from "./carve";
+
+describe("carveCeilingInPlace", () => {
+  it("recedes the ceiling upward within the radius, clamped >= 0", () => {
+    const ceil = new Int16Array(1600).fill(300);
+    carveCeilingInPlace(ceil, { x: 800, y: 300, radius: 50, tick: 0 } as never);
+    expect(ceil[800]!).toBeLessThan(300); // rock removed → ceiling moved up
+    expect(ceil[600]!).toBe(300);         // outside radius unchanged
+    expect(ceil[800]!).toBeGreaterThanOrEqual(0);
+  });
+});
 
 function flatTerrain(width: number, h: number): Int16Array {
   const t = new Int16Array(width);
