@@ -21,6 +21,7 @@ import { Camera } from '../render/Camera';
 import type { TankPosition } from '../render/Camera';
 
 declare const __SERVER_URL__: string;
+declare const __BUILD_ID__: string;
 
 declare global {
   interface Window {

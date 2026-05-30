@@ -37,8 +37,8 @@ const DEBUG_BODY_LIMIT = 8 * 1024 * 1024; // 8 MB
 
 const httpServer = createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("ok");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", build: process.env.BUILD_ID ?? "dev" }));
     return;
   }
   const mReplay = req.url?.match(/^\/replays\/([^/]+)$/);

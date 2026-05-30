@@ -2,6 +2,7 @@ import { Client, Room } from "colyseus.js";
 import type { MatchState } from "@se/shared";
 
 declare const __SERVER_URL__: string;
+declare const __BUILD_ID__: string;
 
 let _client: Client | null = null;
 
