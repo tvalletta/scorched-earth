@@ -26,6 +26,7 @@ export interface ResolveContext {
   broadcast: (event: string, payload: unknown) => void;
   schedule: (delayMs: number, fn: () => void) => void;
   terrain: Int16Array;
+  ceiling: Int16Array | null;
   onTurnReady?: () => void;
   onRoundEnd?: () => void;
   startTickLoop: (projectiles: LiveProjectile[], firingSessionId: string) => void;

@@ -24,6 +24,7 @@ export interface SerializedCarveOp {
   y: number;
   radius: number;
   tick: number;
+  layer?: string;
 }
 
 const TTL_MS = 10 * 60 * 1000;

@@ -30,7 +30,7 @@ export class ReplayRecorder {
     const ops = state.terrainOps;
     for (let i = this.roundCarveStartIdx; i < ops.length; i++) {
       const op = ops[i]!;
-      carveOps.push({ x: op.x, y: op.y, radius: op.radius, tick: op.tick });
+      carveOps.push({ x: op.x, y: op.y, radius: op.radius, tick: op.tick, layer: op.layer });
     }
     this.rounds.push({
       roundNumber: this._pendingRoundNumber,
@@ -53,6 +53,8 @@ export class ReplayRecorder {
     return JSON.parse(JSON.stringify({
       terrainSeed: state.terrainSeed,
       terrainType: state.terrainType,
+      hasCeiling: state.hasCeiling,
+      ceilingSeed: state.ceilingSeed,
       wind: state.wind,
       tanks: Object.fromEntries(
         Array.from(state.tanks.entries()).map(([id, t]) => [

@@ -14,7 +14,7 @@ import {
   type TerrainType, type WallMode, type AiDifficulty,
 } from "@se/shared";
 import {
-  generateTerrain, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
+  generateTerrain, generateCeiling, createPrng, validatePurchase, WEAPON_REGISTRY, ITEM_REGISTRY,
   stepProjectiles, processPendingEffects, type LiveProjectile,
   AI_NAME_POOLS,
   think, AI_PROFILES, shopForAi,
@@ -43,6 +43,7 @@ interface JoinOptions {
 export class MatchRoom extends Room<MatchState> {
   override maxClients = MAX_PLAYERS + MAX_OBSERVERS;
   private terrain: Int16Array = new Int16Array(0);
+  private ceiling: Int16Array | null = null;
   private timeoutHandle: { clear: () => void } | null = null;
   private shopTimerHandle: ReturnType<typeof this.clock.setTimeout> | null = null;
   private matchSeed = "";
@@ -277,6 +278,7 @@ export class MatchRoom extends Room<MatchState> {
       broadcast: (ev, payload) => this.broadcast(ev, payload),
       schedule: (delayMs, fn) => { this.clock.setTimeout(fn, delayMs); },
       terrain: this.terrain,
+      ceiling: this.ceiling,
       onTurnReady: () => {
         this.runPendingEffects();
         this.armTurnTimer();
@@ -335,6 +337,7 @@ export class MatchRoom extends Room<MatchState> {
       projectiles: this.liveProjectiles,
       tanks: buildStepTanks(this.state),
       terrain: this.terrain,
+      ceiling: this.ceiling ?? undefined,
       terrainWidth: TERRAIN_WIDTH,
       terrainHeight: TERRAIN_HEIGHT,
       wind: this.state.wind,
@@ -610,6 +613,23 @@ export class MatchRoom extends Room<MatchState> {
     this.state.wallMode = prng.pick(modesPool);
   }
 
+  /** Generate (or clear) the cave ceiling for the current wall mode. Call
+   *  after this.terrain is set and before placing tanks. */
+  private applyCave(): void {
+    if (this.state.wallMode === "absorb") {
+      this.state.hasCeiling = true;
+      this.state.ceilingSeed = this.state.terrainSeed + "_ceiling";
+      this.ceiling = generateCeiling(
+        { seed: this.state.ceilingSeed, type: "random", width: TERRAIN_WIDTH, height: TERRAIN_HEIGHT },
+        this.terrain,
+      );
+    } else {
+      this.state.hasCeiling = false;
+      this.state.ceilingSeed = "";
+      this.ceiling = null;
+    }
+  }
+
   private startMatch(): void {
     this.matchSeed = this.state.roomCode || "match";
     this.state.round = 1;
@@ -625,6 +645,7 @@ export class MatchRoom extends Room<MatchState> {
       height: TERRAIN_HEIGHT,
     });
     this.terrain = terrain;
+    this.applyCave();
     this.createAiTanks();
     this.placeTanksOn(terrain);
     this.seedInventory();
@@ -642,7 +663,7 @@ export class MatchRoom extends Room<MatchState> {
   private placeTanksOn(terrain: Int16Array): void {
     const tanks = Array.from(this.state.tanks.values());
     if (tanks.length === 0) return;
-    const xs = randomSlots(tanks.length, terrain);
+    const xs = randomSlots(tanks.length, terrain, 120, { ceiling: this.ceiling ?? undefined });
     const shuffled = [...tanks].sort(() => Math.random() - 0.5);
     shuffled.forEach((tank, i) => {
       tank.x = xs[i]!;
@@ -756,6 +777,7 @@ export class MatchRoom extends Room<MatchState> {
       height: TERRAIN_HEIGHT,
     });
     this.terrain = terrain;
+    this.applyCave();
 
     const windPrng = createPrng(state.terrainSeed + "_wind");
     state.wind = windPrng.nextInt(-10, 10);

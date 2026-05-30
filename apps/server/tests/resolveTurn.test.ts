@@ -16,6 +16,7 @@ function makeCtx(state: MatchState, terrain: Int16Array): ResolveContext {
     broadcast: vi.fn(),
     schedule: vi.fn(),
     terrain,
+    ceiling: null,
     onTurnReady: vi.fn(),
     startTickLoop: vi.fn(),
   };
