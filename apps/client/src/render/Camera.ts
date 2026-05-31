@@ -3,6 +3,41 @@ import type { Container, Application } from 'pixi.js';
 export interface TankPosition { x: number; y: number; }
 interface Viewport { width: number; height: number; }
 
+// Visible world band used for camera bounds (NOT the taller physics bounds).
+export const WORLD_LEFT = 0;
+export const WORLD_RIGHT = 1600;     // TERRAIN_WIDTH
+export const WORLD_TOP = -150;       // headroom above peaks for high shots
+export const WORLD_BOTTOM = 1020;    // ~TERRAIN_HEIGHT(900) + 120 underside
+export const MAX_SCALE = 2.0;
+export const ZOOM_SENSITIVITY = 0.0008; // wheel feel; tune in-app
+
+export function minScaleFor(vp: { width: number; height: number }): number {
+  const worldW = WORLD_RIGHT - WORLD_LEFT;
+  const worldH = WORLD_BOTTOM - WORLD_TOP;
+  return Math.max(vp.width / worldW, vp.height / worldH);
+}
+
+/** Clamp world position so no viewport pixel maps outside the world band.
+ * If the scaled world is smaller than the viewport on an axis, center it. */
+export function clampPan(
+  x: number, y: number, scale: number, vp: { width: number; height: number },
+): { x: number; y: number } {
+  const clampAxis = (pos: number, worldMin: number, worldMax: number, vpLen: number) => {
+    const scaledLen = (worldMax - worldMin) * scale;
+    if (scaledLen <= vpLen) {
+      // center: midpoint of world maps to midpoint of viewport
+      return vpLen / 2 - ((worldMin + worldMax) / 2) * scale;
+    }
+    const minPos = vpLen - worldMax * scale; // world-right edge at viewport-right
+    const maxPos = -worldMin * scale;        // world-left edge at viewport-left
+    return Math.min(maxPos, Math.max(minPos, pos));
+  };
+  return {
+    x: clampAxis(x, WORLD_LEFT, WORLD_RIGHT, vp.width),
+    y: clampAxis(y, WORLD_TOP, WORLD_BOTTOM, vp.height),
+  };
+}
+
 // Exported for unit testing
 export function computeFit(
   tanks: TankPosition[],
@@ -58,7 +93,18 @@ export class Camera {
     return { width: this.app.screen.width, height: this.app.screen.height };
   }
 
+  private minScale(): number { return minScaleFor(this.viewport); }
+
+  private clampToBounds(): void {
+    this.targetScale = Math.max(this.minScale(), Math.min(MAX_SCALE, this.targetScale));
+    const p = clampPan(this.targetX, this.targetY, this.targetScale, this.viewport);
+    this.targetX = p.x; this.targetY = p.y;
+  }
+
   update(dt: number): void {
+    if (!Number.isFinite(this.targetX) || !Number.isFinite(this.targetY) || !Number.isFinite(this.targetScale)) {
+      this.targetX = this.viewport.width / 2; this.targetY = this.viewport.height / 2; this.targetScale = 1;
+    }
     const POS_LERP = 1 - Math.pow(1 - 0.08, dt * 60);
     const SCALE_LERP = 1 - Math.pow(1 - 0.06, dt * 60);
 
@@ -88,6 +134,7 @@ export class Camera {
     this.targetX = fit.x;
     this.targetY = fit.y;
     this.targetScale = fit.scale;
+    this.clampToBounds();
   }
 
   trackProjectile(x: number, y: number): void {
@@ -113,6 +160,7 @@ export class Camera {
 
   onTurnStart(): void {
     this.trackingSuspended = false;
+    this.userOverride = false;
   }
 
   get worldX(): number { return this.world.position.x; }
@@ -123,12 +171,24 @@ export class Camera {
 
     canvas.addEventListener('wheel', (e: WheelEvent) => {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      this.targetScale = Math.max(0.4, Math.min(2.0, this.targetScale * delta));
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const oldScale = this.targetScale;
+      const factor = Math.exp(-e.deltaY * ZOOM_SENSITIVITY);
+      const newScale = Math.max(this.minScale(), Math.min(MAX_SCALE, oldScale * factor));
+      const wx = (sx - this.targetX) / oldScale;
+      const wy = (sy - this.targetY) / oldScale;
+      this.targetX = sx - wx * newScale;
+      this.targetY = sy - wy * newScale;
+      this.targetScale = newScale;
+      this.userOverride = true;
+      this.clampToBounds();
     }, { passive: false });
 
-    canvas.addEventListener('mousedown', (e: MouseEvent) => {
+    canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       if (e.button !== 0) return;
+      canvas.setPointerCapture(e.pointerId);
       this.isDragging = true;
       this.shakeIntensity = 0;
       this.trackingSuspended = true;
@@ -137,16 +197,20 @@ export class Camera {
       this.dragStartWorldX = this.world.position.x;
       this.dragStartWorldY = this.world.position.y;
     });
-    window.addEventListener('mousemove', (e: MouseEvent) => {
+    canvas.addEventListener('pointermove', (e: PointerEvent) => {
       if (!this.isDragging) return;
       const dx = e.clientX - this.dragStartMouseX;
       const dy = e.clientY - this.dragStartMouseY;
       this.targetX = this.dragStartWorldX + dx;
       this.targetY = this.dragStartWorldY + dy;
-      this.world.position.set(this.targetX, this.targetY);
       this.userOverride = true;
+      this.clampToBounds();
+      this.world.position.set(this.targetX, this.targetY);
     });
-    window.addEventListener('mouseup', () => { this.isDragging = false; });
+    const endDrag = () => { this.isDragging = false; };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    window.addEventListener('blur', endDrag);
 
     canvas.addEventListener('dblclick', () => this.resetView());
 

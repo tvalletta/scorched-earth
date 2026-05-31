@@ -13,7 +13,7 @@ import { ProjectileRenderer } from "../render/Projectile";
 import { PatriotRenderer } from "../render/Patriot";
 import { Explosion, explosionStyleFor } from "../render/Explosion";
 import { HudBar } from '../hud/HudBar';
-import { PlayerStrip } from '../hud/PlayerStrip';
+import { TurnHud } from '../hud/TurnHud';
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
 import { ShopScene, type RoundEarningsInfo } from "./ShopScene";
 import { MatchEndScene, type MatchEndPayload } from "./MatchEndScene";
@@ -43,7 +43,8 @@ export class MatchScene {
   private trajectoryOverlay!: TrajectoryOverlay;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
   private hudBar: HudBar | null = null;
-  private playerStrip: PlayerStrip | null = null;
+  private turnHud: TurnHud | null = null;
+  private isObserver = false;
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -70,7 +71,7 @@ export class MatchScene {
     window.__sessionId = room.sessionId;
 
     this.hudBar = new HudBar(room);
-    this.playerStrip = new PlayerStrip(room.sessionId);
+    this.turnHud = new TurnHud(room.sessionId);
 
     room.onStateChange.once((state) => this.onFirstState(state));
     room.onMessage("tick", (msg: { tick: number; projectiles: {id:string;x:number;y:number;vx:number;vy:number;weaponId:string}[]; patriots: {id:string;x:number;y:number;vx:number;vy:number}[] }) => {
@@ -200,9 +201,9 @@ export class MatchScene {
         return true;
       });
       this.hudBar?.update(room.state);
-      this.hudBar?.updateTimer(room.state.turnDeadlineMs);
       this.hudBar?.updateWindRound(room.state);
-      this.playerStrip?.update(room.state);
+      // TurnHud self-manages show/hide by phase; suppress entirely for spectators.
+      if (!this.isObserver) this.turnHud?.update(room.state);
     });
   }
 
@@ -319,8 +320,9 @@ export class MatchScene {
 
     // Observer mode: this client joined but has no tank
     if (!state.tanks.has(this.room.sessionId)) {
+      this.isObserver = true;
       if (this.hudBar) this.hudBar.el.style.display = 'none';
-      if (this.playerStrip) this.playerStrip.el.style.display = 'none';
+      if (this.turnHud) this.turnHud.el.style.display = 'none';
       this.showObserverBanner();
     }
 
@@ -353,11 +355,11 @@ export class MatchScene {
       this.trajectoryOverlay?.setSmokeZones([]);
     }
 
-    // Show/hide HudBar and PlayerStrip based on phase. Use explicit 'flex'
-    // (not '') so toggling never clears the inline flex layout.
+    // Show/hide HudBar based on phase. Use explicit 'flex' (not '') so toggling
+    // never clears the inline flex layout. TurnHud self-manages its own
+    // visibility per-phase inside update(), so it needs no toggle here.
     const showHud = (phase === 'playing');
     if (this.hudBar) this.hudBar.el.style.display = showHud ? 'flex' : 'none';
-    if (this.playerStrip) this.playerStrip.el.style.display = showHud ? 'flex' : 'none';
 
     // Dispose previous overlay when leaving a phase
     if (this.lastPhase === "round-summary" && phase !== "round-summary") {

@@ -105,16 +105,6 @@ export class HudBar {
     }
   }
 
-  updateTimer(deadlineMs: number): void {
-    const timer = this.el.querySelector<HTMLDivElement>('#hud-timer');
-    if (!timer) return;
-    const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
-    timer.textContent = String(remaining);
-    const urgent = remaining <= 5;
-    timer.style.borderColor = urgent ? '#ef4444' : '#eab308';
-    timer.style.color = urgent ? '#ef4444' : '#eab308';
-  }
-
   // ── Drive (ported from the old AimControls) ─────────────────────────────
   setDriveMode(fuel: number, maxFuel: number): void {
     this.maxFuel = maxFuel; this.fuel = fuel; this.renderFuel();
@@ -197,11 +187,6 @@ export class HudBar {
         <div id="hud-round" style="font:bold 10px monospace;color:#94a3b8;">ROUND 1/5</div>
         <div id="hud-terrain" style="font:9px monospace;color:#64748b;letter-spacing:0.5px;">—</div>
       </div>
-
-      <!-- Timer -->
-      <div id="hud-timer" style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;
-        background:rgba(0,0,0,0.4);border:2px solid #eab308;border-radius:8px;
-        font:900 24px 'Impact',fantasy;color:#eab308;flex-shrink:0;">--</div>
 
       <!-- Fire -->
       <button id="hud-fire" style="padding:0 24px;height:64px;background:linear-gradient(180deg,#ff8c00,#cc5500);
