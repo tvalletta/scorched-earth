@@ -40,10 +40,12 @@ owner spec/plan to follow). This file is the authoritative DECISION note the aud
 
 - **Decision.** Author a retroactive Phase-6 design spec documenting the weapon catalog as it exists.
 - **Rationale.** Needed for replay versioning (C7) and future balance work; closes the governance gap.
-- **Resulting actions.** ⧗ Write `docs/superpowers/specs/2026-05-3x-phase-6-specialty-weapons-design.md`
-  cataloguing all 28 weapons (`packages/game/src/weapons/` + group1-4): category, damage curve, radius,
-  special mechanics (rollOnImpact, burrow, leapCount, plasmaWave, tracerMode, terrainDeposit),
-  inventory/cost, and acceptance criteria. Doc-only, but sizeable.
+- **Resulting actions.** ✅ **DONE** — wrote `docs/superpowers/specs/2026-05-31-phase-6-specialty-weapons-design.md`
+  cataloguing all 28 registered weapons + sub-munitions (`packages/game/src/weapons/` + group1-4):
+  `WeaponDef`/`SplitDef`/`DepositShape`/`BurnOnImpact` data model, 5 categories (core ballistics, heavy/split
+  variants, alt-physics movement, terrain, burn), every weapon's damage/radius/price/packSize/flags,
+  per-mechanic behavior notes, balance shape, acceptance criteria anchored to the existing unit tests, a
+  new-weapon checklist, and known quirks. Values spot-verified against source. Doc-only; no code change.
 
 ## C4 — Roadmap Audio (P9) + Mobile/A11y (P10) → **keep planned; schedule now**
 
