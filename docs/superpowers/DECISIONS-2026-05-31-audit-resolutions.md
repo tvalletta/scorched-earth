@@ -68,10 +68,13 @@ owner spec/plan to follow). This file is the authoritative DECISION note the aud
 - **Decision.** Spectators get a proper experience: detect spectator mode, show a "👁 Spectating"
   badge, hide player-only HUD, and have the camera follow the action.
 - **Rationale.** Server-side spectating already works; the client is the gap.
-- **Resulting actions.** ⧗ Build spectator detection + badge + camera-follow in `MatchScene`/HUD.
-  **Needs a spec/plan.** Coordinates with the new camera work on `feat/debug-hud-camera-fixes`
-  (the `Camera` already supports tracking; reuse `trackProjectile`/`fitToTanks`, skip `isObserver`
-  suppression for the camera while keeping HUD suppression).
+- **Resulting actions.** ✅ **SHIPPED** (merged to `main` `c800ea1`, 2026-05-31). Most of C6 was already
+  delivered by the camera/TurnHud work (detection, a top-center badge, and camera-follow via
+  `trackProjectile`/`fitToLivingTanks` which run for spectators too). Remaining delta implemented: the
+  read-only **TurnHud (roster + turn timer) is now shown to spectators** (only the interactive `HudBar`
+  stays hidden), the badge reads **"👁 Spectating"**, and the dead `isObserver` field was removed. Added a
+  `TurnHud` spectator-rendering test. Spec: `2026-05-31-c6-spectator-ux-design.md`. Camera behavior left
+  as-is this pass (decision: badge/glyph only).
 
 ## C7 — Replay fidelity → **deterministic re-simulation**
 
