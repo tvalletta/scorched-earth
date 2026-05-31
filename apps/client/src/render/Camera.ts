@@ -3,6 +3,41 @@ import type { Container, Application } from 'pixi.js';
 export interface TankPosition { x: number; y: number; }
 interface Viewport { width: number; height: number; }
 
+// Visible world band used for camera bounds (NOT the taller physics bounds).
+export const WORLD_LEFT = 0;
+export const WORLD_RIGHT = 1600;     // TERRAIN_WIDTH
+export const WORLD_TOP = -150;       // headroom above peaks for high shots
+export const WORLD_BOTTOM = 1020;    // ~TERRAIN_HEIGHT(900) + 120 underside
+export const MAX_SCALE = 2.0;
+export const ZOOM_SENSITIVITY = 0.0008; // wheel feel; tune in-app
+
+export function minScaleFor(vp: { width: number; height: number }): number {
+  const worldW = WORLD_RIGHT - WORLD_LEFT;
+  const worldH = WORLD_BOTTOM - WORLD_TOP;
+  return Math.max(vp.width / worldW, vp.height / worldH);
+}
+
+/** Clamp world position so no viewport pixel maps outside the world band.
+ * If the scaled world is smaller than the viewport on an axis, center it. */
+export function clampPan(
+  x: number, y: number, scale: number, vp: { width: number; height: number },
+): { x: number; y: number } {
+  const clampAxis = (pos: number, worldMin: number, worldMax: number, vpLen: number) => {
+    const scaledLen = (worldMax - worldMin) * scale;
+    if (scaledLen <= vpLen) {
+      // center: midpoint of world maps to midpoint of viewport
+      return vpLen / 2 - ((worldMin + worldMax) / 2) * scale;
+    }
+    const minPos = vpLen - worldMax * scale; // world-right edge at viewport-right
+    const maxPos = -worldMin * scale;        // world-left edge at viewport-left
+    return Math.min(maxPos, Math.max(minPos, pos));
+  };
+  return {
+    x: clampAxis(x, WORLD_LEFT, WORLD_RIGHT, vp.width),
+    y: clampAxis(y, WORLD_TOP, WORLD_BOTTOM, vp.height),
+  };
+}
+
 // Exported for unit testing
 export function computeFit(
   tanks: TankPosition[],
