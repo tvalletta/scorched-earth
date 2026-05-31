@@ -48,4 +48,16 @@ describe("TurnHud", () => {
     expect(hud.el.querySelector('[data-session="B"]')!.textContent).toContain("🤖");
     expect(hud.el.querySelector('[data-session="A"]')!.textContent).not.toContain("🤖");
   });
+
+  it("spectator view (localSessionId matches no tank): all players by nickname, no 'You', active highlight intact", () => {
+    const hud = new TurnHud("SPECTATOR"); // matches no tank → viewer is a spectator
+    hud.update(mkState());
+    const rows = hud.el.querySelectorAll("[data-session]");
+    expect(rows.length).toBe(3);
+    expect(hud.el.textContent).not.toContain("You");
+    expect(hud.el.querySelector('[data-session="A"]')!.textContent).toContain("Red");
+    expect(hud.el.querySelector('[data-session="B"]')!.textContent).toContain("Blue");
+    // active-turn highlight still works for spectators
+    expect(hud.el.querySelector('[data-session="A"]')!.classList.contains("active")).toBe(true);
+  });
 });
