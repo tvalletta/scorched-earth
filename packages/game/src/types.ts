@@ -12,7 +12,7 @@ export interface TerrainOptions {
 export interface CarveOp { x: number; y: number; radius: number; tick: number; }
 
 export interface SplitDef {
-  trigger: "apex";           // fires when vy crosses from negative to non-negative
+  trigger: "apex" | "ground"; // "apex": fires at peak vy; "ground": fires on terrain impact
   count: number;             // sub-projectile count
   spreadDeg: number;         // 360 = full radial circle; <360 = fan
   centerDeg: number;         // screen-space fan center; 90 = straight down

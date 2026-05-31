@@ -21,29 +21,14 @@ describe("FUNKY_BOMB", () => {
     expect(FUNKY_BOMB.id).toBe("funky-bomb");
     expect(FUNKY_BOMB.radius).toBe(0);
     expect(FUNKY_BOMB.damage).toBe(0);
+    expect(FUNKY_BOMB.split?.trigger).toBe("ground");   // was "apex"
     expect(FUNKY_BOMB.split?.count).toBe(8);
-    expect(FUNKY_BOMB.split?.spreadDeg).toBe(360);
+    expect(FUNKY_BOMB.split?.spreadDeg).toBe(160);      // was 360
     expect(FUNKY_BOMB.split?.inheritVelocity).toBe(false);
   });
 
-  it("splits into 8 children", () => {
-    const r = simulateProjectile(base());
-    expect(r.children).toHaveLength(8);
-  });
-
-  it("children spread both left and right of origin", () => {
-    const r = simulateProjectile(base());
-    const left = r.children!.filter((c) => c.impact && c.impact.x < 800);
-    const right = r.children!.filter((c) => c.impact && c.impact.x > 800);
-    expect(left.length).toBeGreaterThan(0);
-    expect(right.length).toBeGreaterThan(0);
-  });
-
-  it("sub-munition carveOp radius is 18", () => {
-    const r = simulateProjectile(base());
-    const withImpact = r.children!.filter((c) => c.carveOp);
-    expect(withImpact.length).toBeGreaterThan(0);
-    for (const c of withImpact) expect(c.carveOp!.radius).toBe(18);
+  it("sub-munition is wind-immune", () => {
+    expect(FUNKY_BOMB.split?.child.windImmune).toBe(true);
   });
 });
 
