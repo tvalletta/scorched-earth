@@ -139,7 +139,15 @@ async function runFullMatchWithInvariants(roomCode: string): Promise<void> {
   // is a safety-net fallback — the test sends explicit "fire" immediately, so the
   // timer should never trigger.  Merged into one send to eliminate the race where
   // the match could start with the default 30 s turn timer between the two sends.
-  a.send("configure", { maxRounds: 1, turnTimerMs: 5_000 });
+  // turnTimerMs is a pure safety net — the test sends explicit "fire" every
+  // turn, so the server-side timer should never trigger. It must be LONG: at
+  // 5 s it raced the scripted select-weapon+fire round-trip under CI/parallel
+  // load and won, auto-firing the tank's *stale* state (default baby-missile,
+  // pre-selection) instead of the intended nuke. That stall produced an
+  // intermittent MAX_TURNS failure whose "failing room" wandered run-to-run.
+  // 120 s is effectively unreachable under any realistic round-trip while still
+  // bounding a genuine hang (the per-turn waitForState caps at 25 s anyway).
+  a.send("configure", { maxRounds: 1, turnTimerMs: 120_000 });
   await new Promise((r) => setTimeout(r, 50));
 
   // ── Drive the match; always disconnect both clients even on assertion failure ──
@@ -192,9 +200,12 @@ async function runFullMatchWithInvariants(roomCode: string): Promise<void> {
       // ── playing: assert invariants, then fire immediately ───────────────
       if (phase === "playing") {
         if (++turnsPlayed > MAX_TURNS) {
+          const hps = Array.from(a.state.tanks.values())
+            .map((t: any) => `${t.sessionId.slice(0,4)}=${t.hp}${t.alive ? "" : "✝"}`).join(" ");
           throw new Error(
             `Match did not reach 'ended' within ${MAX_TURNS} turns (${roomCode}). ` +
-              `phase=${a.state.phase}, turn=${a.state.currentTurnPlayerId}`,
+              `phase=${a.state.phase}, turn=${a.state.currentTurnPlayerId}, ` +
+              `terrain=${a.state.terrainType}, wall=${a.state.wallMode}, ceiling=${a.state.hasCeiling}, HP[${hps}]`,
           );
         }
 
