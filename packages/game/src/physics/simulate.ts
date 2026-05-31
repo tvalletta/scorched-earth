@@ -154,6 +154,30 @@ export function simulateProjectile(input: SimInput): TrajectoryResult {
       const finalY = prev.y + (y - prev.y) * hi;
       const finalT = prev.t + (t - prev.t) * hi;
       rawSamples.push({ x: finalX, y: finalY, t: finalT });
+
+      // Ground-split: fire children from impact; parent neither carves nor damages.
+      if (weapon.split?.trigger === "ground") {
+        const splitAt: TrajectorySample = { x: finalX, y: finalY, t: finalT };
+        const vels = childVelocities(weapon.split, vx, vy);
+        const children = vels.map((vel) =>
+          simulateProjectile({
+            ...input,
+            weapon: weapon.split!.child,
+            origin: { x: finalX, y: finalY },
+            initialVelocity: vel,
+          }),
+        );
+        return {
+          samples: downsample(rawSamples),
+          impact: { x: finalX, y: finalY },
+          durationMs: rawSamples[rawSamples.length - 1]!.t,
+          carveOp: null,
+          damages: [],
+          splitAt,
+          children,
+        };
+      }
+
       impact = { x: finalX, y: finalY };
       t = finalT;
       break;

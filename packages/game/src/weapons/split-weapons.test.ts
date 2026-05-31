@@ -54,3 +54,23 @@ describe("MIRV", () => {
     }
   });
 });
+
+describe("FUNKY_BOMB ground trigger", () => {
+  it("splits into 8 children on terrain impact (not at apex)", () => {
+    const r = simulateProjectile(base({ weapon: FUNKY_BOMB, angle: 90, power: 500 }));
+    expect(r.children).toHaveLength(8);
+  });
+
+  it("parent has no carveOp — children carve individually", () => {
+    const r = simulateProjectile(base({ weapon: FUNKY_BOMB }));
+    expect(r.carveOp).toBeNull();
+  });
+
+  it("children spread to both left and right of impact", () => {
+    const r = simulateProjectile(base({ weapon: FUNKY_BOMB, angle: 90, power: 500 }));
+    const left  = r.children!.filter((c) => c.impact && c.impact.x < 800);
+    const right = r.children!.filter((c) => c.impact && c.impact.x > 800);
+    expect(left.length).toBeGreaterThan(0);
+    expect(right.length).toBeGreaterThan(0);
+  });
+});
