@@ -44,7 +44,6 @@ export class MatchScene {
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
   private hudBar: HudBar | null = null;
   private turnHud: TurnHud | null = null;
-  private isObserver = false;
   private roundSummaryScene: RoundSummaryScene | null = null;
   private shopScene: ShopScene | null = null;
   private matchEndScene: MatchEndScene | null = null;
@@ -202,8 +201,9 @@ export class MatchScene {
       });
       this.hudBar?.update(room.state);
       this.hudBar?.updateWindRound(room.state);
-      // TurnHud self-manages show/hide by phase; suppress entirely for spectators.
-      if (!this.isObserver) this.turnHud?.update(room.state);
+      // TurnHud self-manages show/hide by phase; shown to players AND spectators
+      // (it's read-only roster/turn info — only the interactive HudBar is hidden for spectators).
+      this.turnHud?.update(room.state);
     });
   }
 
@@ -318,11 +318,10 @@ export class MatchScene {
       }
     });
 
-    // Observer mode: this client joined but has no tank
+    // Spectator mode: this client joined but has no tank. Hide the interactive
+    // HudBar (aim/fire); keep the read-only TurnHud roster/timer visible.
     if (!state.tanks.has(this.room.sessionId)) {
-      this.isObserver = true;
       if (this.hudBar) this.hudBar.el.style.display = 'none';
-      if (this.turnHud) this.turnHud.el.style.display = 'none';
       this.showObserverBanner();
     }
 
@@ -335,7 +334,7 @@ export class MatchScene {
       "position:fixed;top:12px;left:50%;transform:translateX(-50%);" +
       "background:rgba(0,0,0,0.75);color:#f0c040;font:bold 12px 'Courier New',monospace;" +
       "padding:6px 16px;border-radius:6px;letter-spacing:2px;z-index:200;pointer-events:none;";
-    banner.textContent = "SPECTATING";
+    banner.textContent = "👁 Spectating";
     document.getElementById("ui")!.appendChild(banner);
   }
 
