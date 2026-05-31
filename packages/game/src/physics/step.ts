@@ -350,6 +350,14 @@ export function stepProjectiles(input: StepInput): StepResult {
         continue;
       }
 
+      // Ground-trigger MIRV split (e.g. FUNKY_BOMB): spawn children on terrain contact
+      if (p.weapon.split && p.weapon.split.trigger === "ground") {
+        const children = spawnMirvChildren(p, p.x, surfaceY);
+        spawned.push(...children);
+        events.push({ kind: "mirv-split", projectileId: p.id, x: p.x, y: surfaceY, children });
+        continue; // parent consumed — no terrain carve, no damage
+      }
+
       // Smoke on impact
       if (p.weapon.smokeOnImpact) {
         const s = p.weapon.smokeOnImpact;
