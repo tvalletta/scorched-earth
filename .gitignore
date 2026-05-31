@@ -46,3 +46,6 @@ playwright/.cache/
 
 # Ephemeral debug screenshots
 *.png
+
+# Runtime debug capture data
+apps/server/data/
