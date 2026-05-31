@@ -242,6 +242,7 @@ export class MatchRoom extends Room<MatchState> {
       const registry = [
         ...Array.from(WEAPON_REGISTRY.values()).map((w) => ({ id: w.id, price: w.price, packSize: w.packSize })),
         ...Array.from(ITEM_REGISTRY.values()).map((i) => ({ id: i.id, price: i.price, packSize: i.packSize })),
+        ...Array.from(SHIELD_DEFS.values()).map((s) => ({ id: s.id, price: s.price, packSize: s.packSize })),
       ];
 
       const result = validatePurchase(
@@ -368,7 +369,7 @@ export class MatchRoom extends Room<MatchState> {
       const tank = this.state.tanks.get(drain.sessionId);
       if (tank && tank.shieldHp > 0) {
         tank.shieldHp = Math.max(0, tank.shieldHp - drain.hpDrain);
-        if (tank.shieldHp <= 0) tank.shieldId = "";
+        if (tank.shieldHp <= 0) { tank.shieldId = ""; tank.shieldMaxHp = 0; }
       }
     }
 
@@ -387,8 +388,22 @@ export class MatchRoom extends Room<MatchState> {
       this.timeoutHandle.clear();
       this.timeoutHandle = null;
     }
-    if (this.state.turnTimerMs <= 0) return;
     if (this.state.phase !== "playing") return;
+
+    // Auto-Shield: if the active player owns one and has no active shield, auto-equip it.
+    const at = this.state.tanks.get(this.state.currentTurnPlayerId);
+    if (at && at.alive && !at.shieldId) {
+      const owned = at.inventory.get("auto-shield") ?? 0;
+      if (owned > 0) {
+        const def = SHIELD_DEFS.get("auto-shield")!;
+        at.inventory.set("auto-shield", owned - 1);
+        at.shieldId = "auto-shield";
+        at.shieldHp = def.maxHp;
+        at.shieldMaxHp = def.maxHp;
+      }
+    }
+
+    if (this.state.turnTimerMs <= 0) return;
     this.timeoutHandle = this.clock.setTimeout(() => {
       this.timeoutHandle = null;
       if (this.state.phase !== "playing") return;
@@ -453,7 +468,7 @@ export class MatchRoom extends Room<MatchState> {
 
       // Equip best available shield (chance based on difficulty profile)
       if (!tank.shieldId && prng.nextFloat() < profile.shieldEquipChance) {
-        const shieldOrder = ["force-shield", "super-magnetic", "heavy-shield", "shield"];
+        const shieldOrder = ["magnetic-shield", "deflector-shield", "auto-shield", "force-field", "reactive-armor"];
         for (const shieldId of shieldOrder) {
           const count = tank.inventory.get(shieldId) ?? 0;
           if (count > 0) {
@@ -564,7 +579,7 @@ export class MatchRoom extends Room<MatchState> {
       // Seed starting items
       tank.inventory.set("parachute", 1);
       if (this.state.loadoutId === "bonanza") {
-        tank.inventory.set("shield", 1);
+        tank.inventory.set("force-field", 1);
       }
       tank.weaponId = "baby-missile";
     }
@@ -694,6 +709,7 @@ export class MatchRoom extends Room<MatchState> {
     const registry = [
       ...Array.from(WEAPON_REGISTRY.values()).map(w => ({ id: w.id, price: w.price, packSize: w.packSize })),
       ...Array.from(ITEM_REGISTRY.values()).map(i => ({ id: i.id, price: i.price, packSize: i.packSize })),
+      ...Array.from(SHIELD_DEFS.values()).map(s => ({ id: s.id, price: s.price, packSize: s.packSize })),
     ];
 
     for (const slot of state.aiSlots) {

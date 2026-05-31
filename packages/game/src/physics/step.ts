@@ -1,5 +1,5 @@
 import type { LiveProjectile, StepInput, StepResult, StepEvent } from "../types";
-import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
+import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN, MAGNETIC_FORCE_CONST, MAGNETIC_DRAIN_HP_PER_SEC } from "@se/shared";
 
 const WIND_ACCEL_SCALE = 5.0;
 const ROLLER_SPEED = 200; // px/s
@@ -178,8 +178,9 @@ export function stepProjectiles(input: StepInput): StepResult {
       }
     }
 
-    // 5. Shield check
+    // 5. Shield check (May-26 model: absorb/deflect/bend/explode + universal pierce)
     let shielded = false;
+    let deflectedBySessionId: string | undefined;
     for (const tank of tanks) {
       if (tank.sessionId === p.ownerId) continue; // owner's own shield never blocks
       if (tank.shieldHp <= 0) continue;
@@ -189,46 +190,55 @@ export function stepProjectiles(input: StepInput): StepResult {
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist >= tank.shieldRadius) continue;
 
-      const nx = dx / dist;
-      const ny = dy / dist;
+      const nx = dist > 1e-6 ? dx / dist : 1;
+      const ny = dist > 1e-6 ? dy / dist : 0;
+
+      const pierce = p.weapon.shieldPierce ?? 0;
+      const piercedHull = p.weapon.damage * pierce;
+      const shieldedDamage = p.weapon.damage * (1 - pierce);
 
       if (tank.shieldType === "absorb") {
-        const pierce = p.weapon.shieldPierce ?? 0;
-        const effectiveDamage = p.weapon.damage * (1 - pierce);
-        const piercedHull = p.weapon.damage * pierce;
         const hpBefore = tank.shieldHp;
-        const absorbed = Math.min(effectiveDamage, hpBefore);
-        const hpAfter = hpBefore - absorbed;
-        const absorbOverflow = effectiveDamage - absorbed;
-        events.push({
-          kind: "shield-absorb",
-          projectileId: p.id, targetId: tank.sessionId,
-          hpBefore, hpAfter, absorbed,
-          overflow: absorbOverflow + piercedHull, // total hull damage
-          ownerId: p.ownerId,
-        });
+        const hpAfter = Math.max(0, hpBefore - shieldedDamage * tank.hpCostFraction);
         tank.shieldHp = hpAfter;
-        shielded = true; // projectile is still "blocked" — no pass-through
+        events.push({ kind: "shield-absorb", projectileId: p.id, targetId: tank.sessionId, hpBefore, hpAfter, piercedHull, ownerId: p.ownerId });
+        shielded = true;
         break;
       }
-
+      if (tank.shieldType === "deflect") {
+        // Incoming-only guard: dot product of velocity with outward normal.
+        // nx/ny points from tank center toward projectile (outward), so a
+        // projectile moving toward the shield has dot < 0.  If dot >= 0 the
+        // projectile is already moving away — skip to avoid oscillation.
+        const dot = p.vx * nx + p.vy * ny;
+        if (dot >= 0) continue;
+        const hpBefore = tank.shieldHp;
+        const hpAfter = Math.max(0, hpBefore - shieldedDamage * tank.hpCostFraction);
+        tank.shieldHp = hpAfter;
+        p.vx = p.vx - 2 * dot * nx;
+        p.vy = p.vy - 2 * dot * ny;
+        deflectedBySessionId = tank.sessionId;
+        events.push({ kind: "shield-deflect", projectileId: p.id, targetId: tank.sessionId, newVx: p.vx, newVy: p.vy, hpBefore, hpAfter, piercedHull, ownerId: p.ownerId });
+        break;
+      }
+      if (tank.shieldType === "explode") {
+        events.push({ kind: "shield-explode", projectileId: p.id, targetId: tank.sessionId, x: p.x, y: p.y, piercedHull, weapon: p.weapon, ownerId: p.ownerId });
+        tank.shieldHp = 0;
+        shielded = true;
+        break;
+      }
       if (tank.shieldType === "bend") {
-        const strength = 8000 / (dist * dist);
+        const strength = MAGNETIC_FORCE_CONST / Math.max(1, dist * dist);
         const impulseX = nx * strength * dt;
         const impulseY = ny * strength * dt;
         p.vx += impulseX;
         p.vy += impulseY;
         events.push({ kind: "shield-bend", projectileId: p.id, targetId: tank.sessionId, impulseX, impulseY });
         const existing = shieldDrains.find(d => d.sessionId === tank.sessionId);
-        if (existing) {
-          existing.hpDrain = Math.max(existing.hpDrain, 15 * dt);
-        } else {
-          shieldDrains.push({ sessionId: tank.sessionId, hpDrain: 15 * dt });
-        }
-        // projectile stays alive — no shielded=true
+        if (existing) existing.hpDrain = Math.max(existing.hpDrain, MAGNETIC_DRAIN_HP_PER_SEC * dt);
+        else shieldDrains.push({ sessionId: tank.sessionId, hpDrain: MAGNETIC_DRAIN_HP_PER_SEC * dt });
         break;
       }
-
     }
 
     if (shielded) continue;
@@ -262,9 +272,11 @@ export function stepProjectiles(input: StepInput): StepResult {
 
       // Swept hull check using point-to-segment distance.
       // For the owner: only collide if it was ALREADY armed before this tick.
+      // Skip the tank that deflected this projectile this tick (prevent instant re-hit).
       let hullHit = false;
       for (const tank of tanks) {
         if (tank.sessionId === p.ownerId && !wasArmed) continue;
+        if (deflectedBySessionId && tank.sessionId === deflectedBySessionId) continue;
         const distSq = pointToSegmentDistSq(tank.x, tank.y, prevX, prevY, p.x, p.y);
         if (distSq < TANK_HIT_RADIUS * TANK_HIT_RADIUS) {
           events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });

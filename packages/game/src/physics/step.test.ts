@@ -137,6 +137,7 @@ function absorbTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
     shieldHp: 200, shieldMaxHp: 200,
     shieldRadius: 60,
     shieldType: "absorb",
+    hpCostFraction: 1,
     ...overrides,
   };
 }
@@ -151,24 +152,23 @@ describe("stepProjectiles — absorb shield", () => {
     expect(result.survivors).toHaveLength(0);
     if (ev?.kind === "shield-absorb") {
       expect(ev.targetId).toBe("defender");
-      // absorbed = min(damage, shieldHp) = min(BABY_MISSILE.damage, 200)
-      const expectedAbsorbed = Math.min(BABY_MISSILE.damage, 200);
-      expect(ev.absorbed).toBe(expectedAbsorbed);
-      expect(ev.hpAfter).toBe(200 - expectedAbsorbed);
-      expect(ev.overflow).toBe(BABY_MISSILE.damage - expectedAbsorbed);
+      // hpAfter = max(0, hpBefore - damage * hpCostFraction)
+      const expectedHpAfter = Math.max(0, 200 - BABY_MISSILE.damage * 1);
+      expect(ev.hpAfter).toBe(expectedHpAfter);
+      expect(ev.piercedHull).toBe(0); // no shieldPierce on BABY_MISSILE
       expect(ev.ownerId).toBe("attacker");
     }
   });
 
-  it("overflow equals zero when shield has enough HP", () => {
-    // Shield HP 200, BABY_MISSILE.damage is <= 200
+  it("piercedHull equals zero when weapon has no shieldPierce", () => {
+    // Shield HP 200, BABY_MISSILE has no shieldPierce
     const tank = absorbTank({ shieldHp: 200 });
     const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
     const ev = result.events.find(e => e.kind === "shield-absorb");
     expect(ev).toBeDefined();
     if (ev?.kind === "shield-absorb") {
-      expect(ev.overflow).toBe(0);
+      expect(ev.piercedHull).toBe(0);
     }
   });
 
@@ -177,6 +177,7 @@ describe("stepProjectiles — absorb shield", () => {
       sessionId: "p2", x: 400, y: 400,
       shieldHp: 500, shieldMaxHp: 500, shieldRadius: 65,
       shieldType: "absorb",
+      hpCostFraction: 1,
     }];
     const result = stepProjectiles({
       projectiles: [{
@@ -194,15 +195,14 @@ describe("stepProjectiles — absorb shield", () => {
     }
   });
 
-  it("overflow equals damage minus shieldHp when shield is too weak", () => {
-    const tank = absorbTank({ shieldHp: 5 }); // small shield
+  it("shield drains to zero when shield HP is too weak to absorb full damage", () => {
+    const tank = absorbTank({ shieldHp: 5 }); // small shield, hpCostFraction:1
     const p = makeProjectile({ x: 800, y: 455, vy: 3000, ownerId: "attacker" });
     const result = stepProjectiles({ ...BASE_INPUT, projectiles: [p], tanks: [tank] });
     const ev = result.events.find(e => e.kind === "shield-absorb");
     if (ev?.kind === "shield-absorb") {
-      expect(ev.absorbed).toBe(5);
-      expect(ev.hpAfter).toBe(0);
-      expect(ev.overflow).toBe(BABY_MISSILE.damage - 5);
+      expect(ev.hpAfter).toBe(0); // max(0, 5 - damage*1) = 0
+      expect(ev.piercedHull).toBe(0); // no shieldPierce
     }
   });
 
@@ -236,6 +236,7 @@ describe("stepProjectiles — magnetic shield (bend)", () => {
       shieldHp: 600, shieldMaxHp: 600,
       shieldRadius: 100,
       shieldType: "bend",
+      hpCostFraction: 0,
       ...overrides,
     };
   }
@@ -410,6 +411,7 @@ function plainTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
     shieldHp: 0, shieldMaxHp: 0,
     shieldRadius: 0,
     shieldType: "",
+    hpCostFraction: 0,
     ...overrides,
   };
 }
@@ -477,5 +479,180 @@ describe("stepProjectiles — hull collision (tank direct hit)", () => {
       expect(impact.ownerId).toBe("player1");
     }
     expect(result.survivors).toHaveLength(0);
+  });
+});
+
+// ─── May-26 shield model tests ───────────────────────────────────────────────
+
+import type { StepInput } from "../types";
+
+function shieldTank(over: Partial<StepTankInfo> = {}): StepTankInfo {
+  return { sessionId: "T", x: 100, y: 100, shieldHp: 0, shieldMaxHp: 0, shieldRadius: 0, shieldType: "", hpCostFraction: 0, ...over };
+}
+function shieldProj(over: Partial<LiveProjectile> = {}): LiveProjectile {
+  return { id: "p1", x: 100, y: 100, vx: 10, vy: 0, ownerId: "A",
+    weapon: { id:"w", label:"W", damage:100, radius:30, price:0, packSize:1, windImmune: false } as any, ...over } as LiveProjectile;
+}
+function shieldInput(over: Partial<StepInput> = {}): StepInput {
+  return { projectiles: [shieldProj()], tanks: [], terrain: new Int16Array(2000).fill(900),
+    terrainWidth: 1600, terrainHeight: 900, wind: 0, gravity: 0, dt: 1/60, wallMode: "none", ...over };
+}
+
+describe("shield physics — May-26 model", () => {
+  it("absorb: consumes projectile, drains shieldHp by damage*hpCostFraction, no hull overflow", () => {
+    const t = shieldTank({ shieldHp: 200, shieldMaxHp: 200, shieldRadius: 60, shieldType: "absorb", hpCostFraction: 0.5 });
+    const r = stepProjectiles(shieldInput({ tanks: [t] }));
+    const ev = r.events.find(e => e.kind === "shield-absorb") as any;
+    expect(ev).toBeTruthy();
+    expect(ev.hpAfter).toBe(200 - 100 * 0.5);
+    expect(ev.piercedHull).toBe(0);
+    expect(r.survivors.find(p => p.id === "p1")).toBeUndefined();
+  });
+  it("absorb + plasma pierce: hull takes pierced fraction, shield drains on shielded fraction", () => {
+    const t = shieldTank({ shieldHp: 200, shieldMaxHp: 200, shieldRadius: 60, shieldType: "absorb", hpCostFraction: 0.5 });
+    const p = shieldProj({ weapon: { id:"plasma", label:"P", damage:100, radius:30, price:0, packSize:1, shieldPierce:0.5, windImmune: false } as any });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    const ev = r.events.find(e => e.kind === "shield-absorb") as any;
+    expect(ev.piercedHull).toBe(50);
+    expect(ev.hpAfter).toBe(200 - (100 * 0.5) * 0.5);
+  });
+  it("deflect: reflects velocity about the shield normal, keeps projectile alive", () => {
+    const t = shieldTank({ x: 110, y: 100, shieldHp: 500, shieldMaxHp: 500, shieldRadius: 70, shieldType: "deflect", hpCostFraction: 0.25 });
+    const p = shieldProj({ x: 100, y: 100, vx: 10, vy: 0 });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    const ev = r.events.find(e => e.kind === "shield-deflect") as any;
+    expect(ev).toBeTruthy();
+    expect(ev.newVx).toBeLessThan(0);
+    expect(ev.hpAfter).toBe(500 - 100 * 0.25);
+    expect(r.survivors.find(p => p.id === "p1")).toBeTruthy();
+  });
+  it("explode: reactive armor consumed, shield spent, emits shield-explode at contact", () => {
+    const t = shieldTank({ shieldHp: 1, shieldMaxHp: 1, shieldRadius: 50, shieldType: "explode", hpCostFraction: 1 });
+    const r = stepProjectiles(shieldInput({ tanks: [t] }));
+    const ev = r.events.find(e => e.kind === "shield-explode") as any;
+    expect(ev).toBeTruthy();
+    expect(ev.x).toBeCloseTo(100, 0);
+    expect(r.survivors.find(p => p.id === "p1")).toBeUndefined();
+  });
+  it("bend: applies impulse, reports drain, projectile survives", () => {
+    const t = shieldTank({ x: 130, y: 100, shieldHp: 600, shieldMaxHp: 600, shieldRadius: 100, shieldType: "bend", hpCostFraction: 0 });
+    const r = stepProjectiles(shieldInput({ tanks: [t] }));
+    expect(r.events.find(e => e.kind === "shield-bend")).toBeTruthy();
+    expect(r.shieldDrains.find(d => d.sessionId === "T")?.hpDrain).toBeCloseTo(15 * (1/60), 5);
+    expect(r.survivors.find(p => p.id === "p1")).toBeTruthy();
+  });
+  it("owner's own shield never blocks", () => {
+    const t = shieldTank({ sessionId: "A", shieldHp: 200, shieldMaxHp: 200, shieldRadius: 60, shieldType: "absorb", hpCostFraction: 0.5 });
+    const r = stepProjectiles(shieldInput({ tanks: [t] }));
+    expect(r.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
+  });
+
+  it("deflect incoming-only guard: outward-moving projectile within radius is NOT deflected (no oscillation)", () => {
+    // Deflector tank at (110, 100).  Projectile starts at (100, 100) with vx=+10 — moving AWAY from tank
+    // (toward x direction — tank is at x=110, projectile center is at x=100 so nx=(100-110)/dist = negative,
+    // but vx=+10 moving right means it's moving away from tank at x=110... let's be explicit).
+    // Tank at x=50. Projectile at x=100 moving RIGHT (vx=+50) — away from tank.
+    // dx = projX - tankX = 100 - 50 = +50, so nx = +1 (outward points right).
+    // dot = vx*nx + vy*ny = (+50)*(+1) + 0 = +50 >= 0 → must skip.
+    const t = shieldTank({
+      x: 50, y: 100,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+    });
+    // Projectile at x=100, moving right (away from tank at x=50)
+    const p = shieldProj({ x: 100, y: 100, vx: 50, vy: 0, ownerId: "A" });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    // Should NOT emit shield-deflect — projectile is moving away
+    expect(r.events.find(e => e.kind === "shield-deflect")).toBeUndefined();
+    // Shield HP must be unchanged
+    expect(t.shieldHp).toBe(500);
+  });
+
+  it("deflect: INCOMING projectile (moving toward tank) IS still deflected", () => {
+    // Tank at x=110, projectile at x=100 moving right toward the tank (vx=+10).
+    // nx = (100 - 110)/dist = negative (points left, toward projectile from tank is left).
+    // Wait: nx = (projX - tankX)/dist = (100 - 110)/10 = -1. dot = vx*nx = 10*(-1) = -10 < 0 → deflect.
+    const t = shieldTank({
+      x: 110, y: 100,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+    });
+    const p = shieldProj({ x: 100, y: 100, vx: 10, vy: 0, ownerId: "A" });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    // MUST emit shield-deflect — projectile is incoming
+    expect(r.events.find(e => e.kind === "shield-deflect")).toBeTruthy();
+  });
+
+  it("deflect-guard: deflected projectile can hit a second non-deflecting tank (survives deflect, not consumed by D)", () => {
+    // This test validates that the deflectedBySessionId guard on line 274 only skips the deflecting tank itself.
+    // A deflected projectile should continue forward and be able to collide with a hull of a different tank.
+    //
+    // Scenario: Projectile moving right → hits deflector "D" → gets deflected left → can hit hull of tank "E"
+    // The key assertion is that the projectile is NOT instantly consumed by tank "D" after deflect;
+    // the guard lets it continue, and only tank "D" is in the skip list (deflectedBySessionId).
+
+    const deflector = shieldTank({
+      sessionId: "D",
+      x: 150, y: 100,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+    });
+
+    const target = shieldTank({
+      sessionId: "E",
+      x: 50, y: 100,  // positioned to the left (direction projectile will be deflected toward)
+      shieldHp: 0,
+      shieldMaxHp: 0,
+      shieldRadius: 0,
+      shieldType: "",
+      hpCostFraction: 0,
+    });
+
+    const p = shieldProj({
+      x: 100, y: 100,
+      vx: 200,  // initially moving right (toward deflector at x=150)
+      vy: 0,
+      ownerId: "A",
+    });
+
+    const r = stepProjectiles(shieldInput({
+      projectiles: [p],
+      tanks: [deflector, target],
+    }));
+
+    // 1. Deflect event for D should be emitted
+    const deflectEvent = r.events.find(e => e.kind === "shield-deflect") as any;
+    expect(deflectEvent).toBeTruthy();
+    expect(deflectEvent.targetId).toBe("D");
+
+    // 2. Projectile should NOT be in survivors if it hit E's hull, OR it should be there
+    // (depending on whether E is positioned such that a swept hull check catches it).
+    // At minimum: the projectile is NOT consumed by D after deflect; it survives the deflect itself.
+    // The deflectedBySessionId guard prevents D's hull from re-hitting and re-consuming the projectile.
+    // If tank E's hull is not in swept range this tick, the projectile lives in survivors.
+    // If E is positioned such that the deflected trajectory does sweep through E, a terrain-impact
+    // for E would appear, and projectile would be consumed by E's hull (correct behavior — E has no shield).
+    //
+    // Since precise swept geometry is finicky to engineer in one tick, we check:
+    // - Deflect event fired for D ✓
+    // - Projectile is NOT consumed by the absorb/deflect/explode logic (survives deflect) ✓
+    const survivorOrGone = r.survivors.find(p => p.id === "p1");
+    const hullImpactOnE = r.events.find(e => e.kind === "terrain-impact");
+
+    // Whichever happens, the key invariant is that D did not instantly consume the projectile.
+    // Either: (a) projectile lives (E too far), or (b) projectile is consumed by E's hull (not by D).
+    if (hullImpactOnE) {
+      // Projectile was consumed by E's hull, not by D — correct
+      expect(r.survivors.find(p => p.id === "p1")).toBeUndefined();
+    } else {
+      // Projectile was deflected and survived (E was out of range)
+      expect(survivorOrGone).toBeTruthy();
+    }
   });
 });

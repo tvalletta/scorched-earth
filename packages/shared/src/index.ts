@@ -7,6 +7,13 @@ export { MatchState, type MatchPhase } from "./schema/MatchState";
 export * from "./intents";
 export * from "./constants";
 export * from "./loadouts";
-export { SHIELD_DEFS, type ShieldDef } from "./shields";
+export {
+  SHIELD_DEFS,
+  MAGNETIC_DRAIN_HP_PER_SEC,
+  MAGNETIC_FORCE_CONST,
+  REACTIVE_BLAST,
+  type ShieldDef,
+  type ShieldType,
+} from "./shields";
 export * from "./log";
 export * from "./invariants";

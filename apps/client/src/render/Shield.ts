@@ -1,19 +1,29 @@
 import { Container, Graphics } from "pixi.js";
 
-type ShieldStyle = "absorb" | "bend";
+type ShieldStyle = "absorb" | "deflect" | "bend" | "explode";
 
 const SHIELD_COLORS: Record<string, number> = {
-  "shield":          0x4ecdc4,
-  "heavy-shield":    0x4ecdc4,
-  "super-magnetic":  0xc77dff,
-  "force-shield":    0xffd93d,
+  "force-field":      0x4ecdc4,
+  "deflector-shield": 0xffd93d,
+  "magnetic-shield":  0xc77dff,
+  "reactive-armor":   0xff6b6b,
+  "auto-shield":      0x80ed99,
 };
 
 const SHIELD_RADII: Record<string, number> = {
-  "shield":         55,
-  "heavy-shield":   60,
-  "super-magnetic": 80,
-  "force-shield":   65,
+  "force-field":      60,
+  "deflector-shield": 70,
+  "magnetic-shield":  100,
+  "reactive-armor":   50,
+  "auto-shield":      60,
+};
+
+const STYLE_BY_ID: Record<string, ShieldStyle> = {
+  "force-field":      "absorb",
+  "auto-shield":      "absorb",
+  "deflector-shield": "deflect",
+  "magnetic-shield":  "bend",
+  "reactive-armor":   "explode",
 };
 
 export class ShieldBubble extends Container {
@@ -48,7 +58,22 @@ export class ShieldBubble extends Container {
         const by = Math.sin(a + 0.2) * radius;
         this.ring.moveTo(ax, ay).lineTo(bx, by).stroke({ color, width: 2, alpha });
       }
+    } else if (style === "deflect") {
+      // Solid ring like absorb; on flash shows a bright outer ring spark
+      this.ring.circle(0, 0, radius).stroke({ color, width: 2, alpha });
+      if (this.flashAlpha > 0) {
+        const sparkAlpha = this.flashAlpha * 0.9;
+        this.ring.circle(0, 0, radius + 6).stroke({ color, width: 3, alpha: sparkAlpha });
+      }
+    } else if (style === "explode") {
+      // Thin low-opacity bubble; on flash shows a burst fill
+      this.ring.circle(0, 0, radius).stroke({ color, width: 1, alpha: alpha * 0.6 });
+      if (this.flashAlpha > 0) {
+        const burstAlpha = this.flashAlpha * 0.5;
+        this.ring.circle(0, 0, radius).fill({ color, alpha: burstAlpha });
+      }
     } else {
+      // absorb: standard solid ring
       this.ring.circle(0, 0, radius).stroke({ color, width: 2, alpha });
     }
 
@@ -60,7 +85,6 @@ export class ShieldBubble extends Container {
   }
 
   private styleFor(shieldId: string): ShieldStyle {
-    if (shieldId === "super-magnetic") return "bend";
-    return "absorb";
+    return STYLE_BY_ID[shieldId] ?? "absorb";
   }
 }
