@@ -79,15 +79,31 @@ export class TurnHud {
         const isAi = aiIds.has(t.sessionId);
         const you = t.sessionId === this.localSessionId;
         const name = `${isAi ? "🤖 " : ""}${you ? "You" : t.nickname}${t.alive ? "" : " 💀"}`;
-        return `<div data-session="${t.sessionId}" class="thp-row" style="display:flex;align-items:center;gap:8px;
+        const shieldBar = t.shieldId && t.shieldHp > 0 ? (() => {
+          const frac = t.shieldMaxHp > 0 ? t.shieldHp / t.shieldMaxHp : 0;
+          const segColor = frac > 0.66 ? '#22c55e' : frac > 0.33 ? '#eab308' : '#ef4444';
+          const segs = Array.from({ length: 5 }, (_, i) => {
+            const filled = (i + 1) / 5 <= frac;
+            return `<div style="flex:1;height:4px;border-radius:2px;background:${filled ? segColor : 'rgba(255,255,255,0.1)'};"></div>`;
+          }).join('');
+          return `<div class="thp-shield" style="display:flex;align-items:center;gap:3px;width:100%;padding:2px 0 0;">
+              <span style="font-size:8px;">🛡</span>
+              <div style="display:flex;gap:2px;flex:1;">${segs}</div>
+              <span style="font:bold 7px monospace;color:#4ecdc4;">${Math.round(frac * 100)}%</span>
+            </div>`;
+        })() : '';
+        return `<div data-session="${t.sessionId}" class="thp-row" style="display:flex;flex-direction:column;gap:0;
           background:rgba(8,6,24,0.75);border:1px solid rgba(255,255,255,0.12);border-radius:8px;
           padding:5px 9px;min-width:160px;opacity:${t.alive ? 1 : 0.4};">
-          <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${COLOR_CSS[t.color] ?? "#fff"};"></span>
-          <span class="thp-name" style="flex:1;font:bold 11px system-ui;color:#fff;white-space:nowrap;">${name}</span>
-          <span class="thp-bar" style="width:64px;height:5px;border-radius:3px;background:rgba(255,255,255,0.16);overflow:hidden;">
-            <span class="thp-fill" style="display:block;height:100%;width:${t.hp}%;background:${hpColor(t.hp)};"></span>
-          </span>
-          <span class="thp-num" style="font:bold 10px monospace;color:#cbd5e1;width:22px;text-align:right;">${t.alive ? t.hp : "—"}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${COLOR_CSS[t.color] ?? "#fff"};"></span>
+            <span class="thp-name" style="flex:1;font:bold 11px system-ui;color:#fff;white-space:nowrap;">${name}</span>
+            <span class="thp-bar" style="width:64px;height:5px;border-radius:3px;background:rgba(255,255,255,0.16);overflow:hidden;">
+              <span class="thp-fill" style="display:block;height:100%;width:${t.hp}%;background:${hpColor(t.hp)};"></span>
+            </span>
+            <span class="thp-num" style="font:bold 10px monospace;color:#cbd5e1;width:22px;text-align:right;">${t.alive ? t.hp : "—"}</span>
+          </div>
+          ${shieldBar}
         </div>`;
       }).join("");
     } else {
@@ -98,6 +114,24 @@ export class TurnHud {
         fill.style.width = `${t.hp}%`;
         fill.style.background = hpColor(t.hp);
         row.querySelector<HTMLSpanElement>(".thp-num")!.textContent = t.alive ? String(t.hp) : "—";
+        // Update shield bar if present
+        const shieldRow = row.querySelector<HTMLDivElement>('.thp-shield');
+        if (t.shieldId && t.shieldHp > 0) {
+          if (!shieldRow) {
+            this.sig = ''; // force rebuild
+          } else {
+            const frac = t.shieldMaxHp > 0 ? t.shieldHp / t.shieldMaxHp : 0;
+            const segColor = frac > 0.66 ? '#22c55e' : frac > 0.33 ? '#eab308' : '#ef4444';
+            const segs = shieldRow.querySelectorAll<HTMLDivElement>('div > div');
+            segs.forEach((seg, i) => {
+              seg.style.background = (i + 1) / 5 <= frac ? segColor : 'rgba(255,255,255,0.1)';
+            });
+            const pct = shieldRow.querySelector<HTMLSpanElement>('span:last-child');
+            if (pct) pct.textContent = `${Math.round(frac * 100)}%`;
+          }
+        } else if (shieldRow) {
+          this.sig = ''; // force rebuild to remove
+        }
       }
     }
     // active highlight (every frame, cheap)

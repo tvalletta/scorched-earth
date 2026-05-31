@@ -5,9 +5,12 @@ import { TurnHud } from "./TurnHud";
 
 function mkState(over: Partial<Record<string, unknown>> = {}): MatchState {
   const tanks = new Map<string, any>([
-    ["A", { sessionId: "A", nickname: "Red", color: "red", hp: 82, alive: true }],
-    ["B", { sessionId: "B", nickname: "Blue", color: "blue", hp: 40, alive: true }],
-    ["C", { sessionId: "C", nickname: "Green", color: "green", hp: 0, alive: false }],
+    ["A", { sessionId: "A", nickname: "Red", color: "red", hp: 82, alive: true,
+             shieldId: "", shieldHp: 0, shieldMaxHp: 0 }],
+    ["B", { sessionId: "B", nickname: "Blue", color: "blue", hp: 40, alive: true,
+             shieldId: "", shieldHp: 0, shieldMaxHp: 0 }],
+    ["C", { sessionId: "C", nickname: "Green", color: "green", hp: 0, alive: false,
+             shieldId: "", shieldHp: 0, shieldMaxHp: 0 }],
   ]);
   return {
     phase: "playing", currentTurnPlayerId: "A", turnTimerMs: 30000,
@@ -59,5 +62,26 @@ describe("TurnHud", () => {
     expect(hud.el.querySelector('[data-session="B"]')!.textContent).toContain("Blue");
     // active-turn highlight still works for spectators
     expect(hud.el.querySelector('[data-session="A"]')!.classList.contains("active")).toBe(true);
+  });
+
+  it("shows no shield bar when tank has no active shield", () => {
+    const hud = new TurnHud("A");
+    hud.update(mkState());
+    expect(hud.el.querySelector('[data-session="A"] .thp-shield')).toBeNull();
+  });
+
+  it("shows shield bar when tank has shieldId and shieldHp > 0", () => {
+    const tanks = new Map<string, any>([
+      ["A", { sessionId: "A", nickname: "Red", color: "red", hp: 82, alive: true,
+               shieldId: "force-field", shieldHp: 60, shieldMaxHp: 100 }],
+      ["B", { sessionId: "B", nickname: "Blue", color: "blue", hp: 40, alive: true,
+               shieldId: "", shieldHp: 0, shieldMaxHp: 0 }],
+    ]);
+    const state = { phase: "playing", currentTurnPlayerId: "A", turnTimerMs: 30000,
+      turnDeadlineMs: Date.now() + 18000, round: 1, maxRounds: 5, tanks, aiSlots: [] } as any;
+    const hud = new TurnHud("A");
+    hud.update(state);
+    expect(hud.el.querySelector('[data-session="A"] .thp-shield')).not.toBeNull();
+    expect(hud.el.querySelector('[data-session="B"] .thp-shield')).toBeNull();
   });
 });
