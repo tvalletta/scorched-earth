@@ -223,7 +223,7 @@ export function stepProjectiles(input: StepInput): StepResult {
         break;
       }
       if (tank.shieldType === "bend") {
-        const strength = 8000 / (dist * dist);
+        const strength = 8000 / Math.max(1, dist * dist);
         const impulseX = nx * strength * dt;
         const impulseY = ny * strength * dt;
         p.vx += impulseX;
