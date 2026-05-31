@@ -2,10 +2,11 @@ import { Container, Graphics, Text } from 'pixi.js';
 
 const TOTAL_DURATION = 1200; // ms
 
-export type ExplosionStyle = 'standard' | 'nuke' | 'plasma' | 'fire' | 'skull' | 'dirt';
+export type ExplosionStyle = 'standard' | 'nuke' | 'plasma' | 'fire' | 'skull' | 'dirt' | 'rainbow';
 
 const STYLE_BY_WEAPON: Record<string, ExplosionStyle> = {
   nuke: 'nuke', 'baby-nuke': 'nuke', 'funky-nuke': 'nuke',
+  'funky-bomb': 'rainbow', 'funky-bomb-sub': 'rainbow',
   'plasma-ball': 'plasma', 'plasma-blast': 'plasma', 'plasma-wave': 'plasma',
   napalm: 'fire', 'hot-napalm': 'fire', fireball: 'fire',
   'deaths-head': 'skull', 'deaths-knell': 'skull',
@@ -56,6 +57,7 @@ export class Explosion extends Container {
       case 'fire': this.drawFire(t); break;
       case 'skull': this.drawSkull(t); break;
       case 'dirt': this.drawDirt(t); break;
+      case 'rainbow': this.drawRainbow(t); break;
       default: this.drawStandard(t); break;
     }
   }
@@ -171,6 +173,23 @@ export class Explosion extends Container {
       const dx = Math.cos(ang) * speed * t;
       const dy = Math.sin(ang) * speed * t + r * 2.2 * t * t; // gravity arc
       this.g.circle(dx, dy, 3 + this.seeds[i % 8]! * 3).fill({ color: 0x6b4a25, alpha: Math.max(0, 0.9 - t) });
+    }
+  }
+
+  // ── Rainbow: cycling-colour particle burst, triggered on funky-bomb impact ──
+  private drawRainbow(t: number): void {
+    const COLORS = [0xff0000, 0xff8c00, 0xffff00, 0x00cc44, 0x00b4d8, 0x4361ee, 0xb5179e];
+    const count = 24;
+    for (let i = 0; i < count; i++) {
+      const seed = this.seeds[i % 8]!;
+      const angle = (i / count) * Math.PI * 2 + seed * 0.4;
+      const speed = 40 + seed * 60;
+      const dx = Math.cos(angle) * speed * t;
+      const dy = Math.sin(angle) * speed * t;
+      const radius = 4 + seed * 4;
+      const fade = Math.max(0, 1 - t / 0.5);  // fully gone by t=0.5
+      const color = COLORS[i % COLORS.length]!;
+      this.g.circle(dx, dy, radius * (1 - t * 0.5)).fill({ color, alpha: fade * 0.9 });
     }
   }
 
