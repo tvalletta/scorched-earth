@@ -162,6 +162,8 @@ describe("simulateProjectile determinism", () => {
     const run1 = simulateProjectile(input);
     const run2 = simulateProjectile(input);
     expect(run1.samples).toEqual(run2.samples);
+    // Non-null guard: vertical shot must land on terrain, not exit via ceiling/edge
+    expect(run1.impact).not.toBeNull();
     expect(run1.impact).toEqual(run2.impact);
     expect(run1.carveOp).toEqual(run2.carveOp);
     expect(run1.durationMs).toEqual(run2.durationMs);
@@ -202,6 +204,8 @@ describe("simulateProjectile determinism", () => {
     const run1 = simulateProjectile(input);
     const run2 = simulateProjectile(input);
     expect(run1.samples).toEqual(run2.samples);
+    // Non-null guard: wrapped shot must eventually land on terrain
+    expect(run1.impact).not.toBeNull();
     expect(run1.impact).toEqual(run2.impact);
   });
 
@@ -216,6 +220,8 @@ describe("simulateProjectile determinism", () => {
     const run1 = simulateProjectile(input);
     const run2 = simulateProjectile(input);
     expect(run1.samples).toEqual(run2.samples);
+    // Non-null guard: reflected shot must eventually land on terrain
+    expect(run1.impact).not.toBeNull();
     expect(run1.impact).toEqual(run2.impact);
   });
 
@@ -233,8 +239,33 @@ describe("simulateProjectile determinism", () => {
     });
     const run1 = simulateProjectile(input);
     const run2 = simulateProjectile(input);
+    // Ceiling hits don't set impact by design (documents intended behavior)
+    expect(run1.impact).toBeNull();
+    expect(run2.impact).toBeNull();
+    // The real determinism signal: the trajectory must be non-trivial and byte-identical
+    expect(run1.samples.length).toBeGreaterThan(1);
     expect(run1.samples).toEqual(run2.samples);
+  });
+
+  it("absorb wall mode — side-wall absorption produces non-null identical impact both runs", () => {
+    // Fire from near the left edge hard to the left (angle 180° = pure -x direction)
+    // so the projectile immediately crosses x < 0, triggering absorb.
+    // simulate.ts lines 124-128: wallMode "absorb" sets impact = { x: edgeX, y } and breaks,
+    // so carveOp is also derived from that impact.
+    const input = defaultSimInput({
+      origin: { x: 50, y: 580 },
+      angle: 180,
+      power: 600,
+      wind: 0,
+      wallMode: "absorb",
+    });
+    const run1 = simulateProjectile(input);
+    const run2 = simulateProjectile(input);
+    expect(run1.samples).toEqual(run2.samples);
+    // Non-null guard: absorb must record the wall-impact point
+    expect(run1.impact).not.toBeNull();
     expect(run1.impact).toEqual(run2.impact);
+    expect(run1.carveOp).toEqual(run2.carveOp);
   });
 
   it("TRIPLE_WARHEAD (apex split MIRV) — identical split point and all child trajectories", () => {
@@ -250,7 +281,9 @@ describe("simulateProjectile determinism", () => {
     // Parent path up to split
     expect(run1.samples).toEqual(run2.samples);
     expect(run1.splitAt).toEqual(run2.splitAt);
-    expect(run1.impact).toEqual(run2.impact);
+    // Parent impact is structurally always null: apex-split returns before terrain landing
+    expect(run1.impact).toBeNull();
+    expect(run2.impact).toBeNull();
     // Children must be defined and identical
     expect(run1.children).toBeDefined();
     expect(run2.children).toBeDefined();
@@ -260,6 +293,8 @@ describe("simulateProjectile determinism", () => {
       const c1 = run1.children![i]!;
       const c2 = run2.children![i]!;
       expect(c1.samples).toEqual(c2.samples);
+      // Non-null guard: each child must land on terrain (child is a standard projectile)
+      expect(c1.impact).not.toBeNull();
       expect(c1.impact).toEqual(c2.impact);
       expect(c1.carveOp).toEqual(c2.carveOp);
       expect(c1.durationMs).toEqual(c2.durationMs);
@@ -282,12 +317,12 @@ describe("stepProjectiles determinism", () => {
     expect(result1.events).toEqual(result2.events);
     expect(result1.spawned).toEqual(result2.spawned);
     expect(result1.shieldDrains).toEqual(result2.shieldDrains);
-    if (result1.survivors.length > 0) {
-      expect(result1.survivors[0]!.x).toEqual(result2.survivors[0]!.x);
-      expect(result1.survivors[0]!.y).toEqual(result2.survivors[0]!.y);
-      expect(result1.survivors[0]!.vx).toEqual(result2.survivors[0]!.vx);
-      expect(result1.survivors[0]!.vy).toEqual(result2.survivors[0]!.vy);
-    }
+    // Unconditional guard: one tick from mid-air must not immediately destroy the projectile
+    expect(result1.survivors.length).toBeGreaterThan(0);
+    expect(result1.survivors[0]!.x).toEqual(result2.survivors[0]!.x);
+    expect(result1.survivors[0]!.y).toEqual(result2.survivors[0]!.y);
+    expect(result1.survivors[0]!.vx).toEqual(result2.survivors[0]!.vx);
+    expect(result1.survivors[0]!.vy).toEqual(result2.survivors[0]!.vy);
   });
 
   it("multiple projectiles — identical state and events after 60 ticks", () => {
