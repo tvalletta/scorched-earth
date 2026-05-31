@@ -278,6 +278,8 @@ if (p.x < 0 || p.x >= terrainWidth) {
 
 Same wall-mode logic applied to the trajectory simulator so the aim preview dotted line correctly reflects wrap/reflect/absorb behavior. `SimInput.wallMode` is passed down from the server's current `state.wallMode`.
 
+> **⚠️ Superseded (2026-05-31, audit resolution C2).** The **`absorb`** wall mode described above ("explode at the side edge / treat as terrain impact") was **repurposed** by the later *World Depth / Cave / HUD Polish* spec (`2026-05-29-world-depth-cave-hud-polish-design.md`). In the shipped game, selecting `absorb` now generates a **carveable cave ceiling** (`state.hasCeiling = true`, a ceiling heightmap via `generateCeiling`; projectiles collide with and carve the ceiling) — see `MatchRoom.applyCave()` and the `CAVE_MIN_GAP` / `CAVE_EDGE_SEAL` constants. The original edge-explode semantics in this section are historical; the world-depth spec is authoritative for `absorb`. (`reflect` is rendered as cage walls; `wrap` / `none` are unchanged.)
+
 ---
 
 ## Server Changes

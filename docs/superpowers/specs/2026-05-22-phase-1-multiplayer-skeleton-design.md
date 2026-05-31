@@ -24,6 +24,13 @@ This phase establishes every load-bearing system (networking, deterministic phys
 - One terrain type: **Random** (Perlin-noise hills)
 - Wind variance per turn (−10 to +10, integer)
 - Gravity (single value: 9.8; configurability lands in Phase 3)
+
+> **📌 As-built physics constants (2026-05-31, audit resolution C5).** The initial `9.8` above was a placeholder; the shipped, tuned values are the authoritative tuning target:
+> - **Gravity = `250` px/s²** (`MatchState.gravity` default; set in `MatchRoom`). Not real-world 9.8 — these are screen-space px/s² tuned for arc feel.
+> - **Velocity = power, directly in px/s.** `initialVelocityFromAnglePower(angle, power)` ⇒ `vx = -cos(a)·power`, `vy = -sin(a)·power` (`packages/game/src/physics/step.ts`).
+> - **Wind = −10..+10 (integer)** applied as horizontal acceleration `wind · WIND_ACCEL_SCALE · dt` with **`WIND_ACCEL_SCALE = 5.0`**; `weapon.windImmune` weapons ignore it.
+> - **Fixed timestep `dt = 1/60` s.** Vertical bounds: `PLAY_CEILING_Y = -600` (projectiles above are culled), soft floor `terrainHeight + PLAY_FLOOR_MARGIN (500)`.
+> Units are screen-space (px, px/s, px/s²) throughout; there is no meters↔px conversion. Configurability of gravity/wind pools arrived in later phases as planned.
 - Aim controls: mouse drag (primary), keyboard ← → ↑ ↓ (fallback, 1°/1 power, Shift = 5°/10 power)
 - **One weapon: Baby Missile** (free, infinite ammo, radius 20, damage 25)
 - Projectile physics: ballistic + wind + gravity, sub-tick collision against terrain
