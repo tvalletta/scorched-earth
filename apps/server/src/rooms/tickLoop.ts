@@ -1,4 +1,4 @@
-import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS } from "@se/shared";
+import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS, REACTIVE_BLAST } from "@se/shared";
 import {
   computeFallDamage, BABY_MISSILE,
   computeDamage, carveInPlace, carveCeilingInPlace,
@@ -110,31 +110,63 @@ export function applyStepEvent(
   if (event.kind === "shield-absorb") {
     const tank = state.tanks.get(event.targetId);
     if (tank) {
-      // Capture shieldId before possibly clearing it
-      const shieldId = tank.shieldId;
       tank.shieldHp = event.hpAfter;
       if (tank.shieldHp <= 0) tank.shieldId = "";
-
-      // Overflow hull damage
-      if (event.overflow > 0) {
-        tank.hp = Math.max(0, tank.hp - event.overflow);
+      if (event.piercedHull > 0) {
+        tank.hp = Math.max(0, tank.hp - event.piercedHull);
         if (tank.hp <= 0) tank.alive = false;
-      }
-
-      // Force Shield: reflect 25% of absorbed damage back to attacker
-      const def = SHIELD_DEFS.get(shieldId);
-      if (def?.reflectFraction && event.absorbed > 0) {
-        const attacker = state.tanks.get(event.ownerId);
-        if (attacker?.alive) {
-          attacker.hp = Math.max(0, attacker.hp - Math.floor(event.absorbed * def.reflectFraction));
-          if (attacker.hp <= 0) attacker.alive = false;
-        }
       }
     }
     broadcast("shield-hit", {
       targetId: event.targetId, type: "absorb",
       hpBefore: event.hpBefore, hpAfter: event.hpAfter,
     });
+    return;
+  }
+
+  if (event.kind === "shield-deflect") {
+    const tank = state.tanks.get(event.targetId);
+    if (tank) {
+      tank.shieldHp = event.hpAfter;
+      if (tank.shieldHp <= 0) tank.shieldId = "";
+      if (event.piercedHull > 0) {
+        tank.hp = Math.max(0, tank.hp - event.piercedHull);
+        if (tank.hp <= 0) tank.alive = false;
+      }
+    }
+    broadcast("shield-hit", {
+      targetId: event.targetId, type: "deflect",
+      hpBefore: event.hpBefore, hpAfter: event.hpAfter,
+    });
+    return;
+  }
+
+  if (event.kind === "shield-explode") {
+    const tank = state.tanks.get(event.targetId);
+    if (tank) { tank.shieldHp = 0; tank.shieldId = ""; }
+    // Reactive blast at contact — damages all alive tanks in radius incl. owner.
+    const blastWeapon = {
+      id: "reactive-armor",
+      radius: REACTIVE_BLAST.radius,
+      damage: REACTIVE_BLAST.damage,
+      windImmune: true,
+      price: 0,
+      packSize: 0,
+    };
+    const targets = Array.from(state.tanks.values())
+      .filter(t => t.alive)
+      .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
+    const blast = computeDamage({ x: event.x, y: event.y }, blastWeapon, targets);
+    for (const d of blast) {
+      const v = state.tanks.get(d.playerId);
+      if (v) { v.hp = Math.max(0, v.hp - d.hullDamage); if (v.hp <= 0) v.alive = false; }
+    }
+    if (tank && event.piercedHull > 0) {
+      tank.hp = Math.max(0, tank.hp - event.piercedHull);
+      if (tank.hp <= 0) tank.alive = false;
+    }
+    broadcast("explosion", { x: event.x, y: event.y, radius: REACTIVE_BLAST.radius, weaponId: "reactive-armor" });
+    broadcast("shield-hit", { targetId: event.targetId, type: "explode" });
     return;
   }
 
