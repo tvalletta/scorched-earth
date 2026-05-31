@@ -135,125 +135,130 @@ async function runFullMatchWithInvariants(roomCode: string): Promise<void> {
   });
   await new Promise((r) => setTimeout(r, 50));
 
-  // maxRounds=1 avoids the 45 s shopping timer.
-  a.send("configure", { maxRounds: 1 });
-  await new Promise((r) => setTimeout(r, 30));
+  // Single configure: maxRounds=1 avoids the 45 s shopping timer; turnTimerMs=5000
+  // is a safety-net fallback — the test sends explicit "fire" immediately, so the
+  // timer should never trigger.  Merged into one send to eliminate the race where
+  // the match could start with the default 30 s turn timer between the two sends.
+  a.send("configure", { maxRounds: 1, turnTimerMs: 5_000 });
+  await new Promise((r) => setTimeout(r, 50));
 
-  // 5 s fallback turn timer — the test sends explicit "fire" immediately, so
-  // this timer should never trigger in the normal flow.
-  a.send("configure", { turnTimerMs: 5_000 });
-  await new Promise((r) => setTimeout(r, 30));
+  // ── Drive the match; always disconnect both clients even on assertion failure ──
+  try {
+    // ── Lobby invariant ────────────────────────────────────────────────────
+    assertNoViolations(a.state, "lobby:initial");
 
-  // ── Lobby invariant ──────────────────────────────────────────────────────
-  assertNoViolations(a.state, "lobby:initial");
+    // ── Start match ────────────────────────────────────────────────────────
+    a.send("ready", {});
+    const startedPlaying = await waitForState(a, (s) => s.phase === "playing", 5_000);
+    expect(startedPlaying, `Match never left lobby for ${roomCode}`).toBe(true);
+    assertNoViolations(a.state, "playing:match-started");
 
-  // ── Start match ──────────────────────────────────────────────────────────
-  a.send("ready", {});
-  const startedPlaying = await waitForState(a, (s) => s.phase === "playing", 5_000);
-  expect(startedPlaying, `Match never left lobby for ${roomCode}`).toBe(true);
-  assertNoViolations(a.state, "playing:match-started");
+    // ── Main loop ───────────────────────────────────────────────────────────
+    // Safety cap: with the self-shot strategy each player dies in ≤ 2 turns,
+    // so the match ends in ≤ 4 turns.  Use a generous cap to guard against
+    // unexpected hangs without masking real failures.
+    const MAX_TURNS = 20;
+    let turnsPlayed = 0;
 
-  // ── Main loop ─────────────────────────────────────────────────────────────
-  // Safety cap: with the self-shot strategy each player dies in ≤ 2 turns,
-  // so the match ends in ≤ 4 turns.  Use a generous cap to guard against
-  // unexpected hangs without masking real failures.
-  const MAX_TURNS = 20;
-  let turnsPlayed = 0;
+    while (a.state.phase !== "ended") {
+      const phase = a.state.phase as string;
 
-  while (a.state.phase !== "ended") {
-    const phase = a.state.phase as string;
-
-    // ── resolving: tick loop is running; wait for it to finish ───────────
-    if (phase === "resolving") {
-      const ok = await waitForState(a, (s) => s.phase !== "resolving", 15_000);
-      if (!ok) throw new Error(`Stuck in 'resolving' (${roomCode})`);
-      continue;
-    }
-
-    // ── round-summary: maxRounds=1 → auto-advances to 'ended' after 5 s ──
-    if (phase === "round-summary") {
-      assertNoViolations(a.state, "round-summary");
-      const ok = await waitForState(a, (s) => s.phase !== "round-summary", 10_000);
-      if (!ok) throw new Error(`Stuck in 'round-summary' (${roomCode})`);
-      continue;
-    }
-
-    // ── shopping: should not be reached with maxRounds=1 ─────────────────
-    if (phase === "shopping") {
-      assertNoViolations(a.state, "shopping");
-      a.send("ready-for-shop", {});
-      b.send("ready-for-shop", {});
-      const ok = await waitForState(a, (s) => s.phase !== "shopping", 55_000);
-      if (!ok) throw new Error(`Stuck in 'shopping' (${roomCode})`);
-      continue;
-    }
-
-    // ── playing: assert invariants, then fire immediately ─────────────────
-    if (phase === "playing") {
-      if (++turnsPlayed > MAX_TURNS) {
-        throw new Error(
-          `Match did not reach 'ended' within ${MAX_TURNS} turns (${roomCode}). ` +
-            `phase=${a.state.phase}, turn=${a.state.currentTurnPlayerId}`,
-        );
+      // ── resolving: tick loop is running; wait for it to finish ─────────
+      if (phase === "resolving") {
+        assertNoViolations(a.state, "resolving");
+        const ok = await waitForState(a, (s) => s.phase !== "resolving", 15_000);
+        if (!ok) throw new Error(`Stuck in 'resolving' (${roomCode})`);
+        continue;
       }
 
-      assertNoViolations(a.state, `playing:turn-${turnsPlayed}`);
+      // ── round-summary: maxRounds=1 → auto-advances to 'ended' after 5 s ──
+      if (phase === "round-summary") {
+        assertNoViolations(a.state, "round-summary");
+        const ok = await waitForState(a, (s) => s.phase !== "round-summary", 10_000);
+        if (!ok) throw new Error(`Stuck in 'round-summary' (${roomCode})`);
+        continue;
+      }
 
-      const prevTick = a.state.tick as number;
-      const turnId   = a.state.currentTurnPlayerId as string;
-      const firer    = turnId === a.sessionId ? a : (turnId === b.sessionId ? b : null);
+      // ── shopping: should not be reached with maxRounds=1 ───────────────
+      if (phase === "shopping") {
+        assertNoViolations(a.state, "shopping");
+        a.send("ready-for-shop", {});
+        b.send("ready-for-shop", {});
+        const ok = await waitForState(a, (s) => s.phase !== "shopping", 55_000);
+        if (!ok) throw new Error(`Stuck in 'shopping' (${roomCode})`);
+        continue;
+      }
 
-      if (firer) {
-        // Select nuke if available (radius=60, damage=100, 2 in standard loadout).
-        // Falls back to missile (radius=30, damage=60) then baby-missile (infinite).
-        const myTank = a.state.tanks.get(firer.sessionId) as any;
-        const inventory = myTank?.inventory as Map<string, number> | undefined;
-        for (const w of ["nuke", "missile", "baby-missile"] as const) {
-          const count = inventory?.get(w) ?? (w === "baby-missile" ? 1 : 0);
-          if (count !== 0) { // -1 = infinite; > 0 = have some
-            firer.send("select-weapon", { weaponId: w });
-            break;
-          }
+      // ── playing: assert invariants, then fire immediately ───────────────
+      if (phase === "playing") {
+        if (++turnsPlayed > MAX_TURNS) {
+          throw new Error(
+            `Match did not reach 'ended' within ${MAX_TURNS} turns (${roomCode}). ` +
+              `phase=${a.state.phase}, turn=${a.state.currentTurnPlayerId}`,
+          );
         }
 
-        // Angle=90 fires straight up; the shot returns to the same x column,
-        // landing on (or very close to) the firing tank — guaranteed self-damage
-        // regardless of wind, terrain type, or opponent position.
-        firer.send("fire", { angle: 90, power: 500 });
-      }
-      // If firer is null (e.g., turn player is somehow not a/b), the 5 s turn
-      // timer will handle it.
+        assertNoViolations(a.state, `playing:turn-${turnsPlayed}`);
 
-      // Wait for tick to advance (turn completed) OR phase to change.
-      const advanced = await waitForState(
-        a,
-        (s) => s.phase !== "playing" || (s.tick as number) > prevTick,
-        15_000,
-      );
+        const prevTick = a.state.tick as number;
+        const turnId   = a.state.currentTurnPlayerId as string;
+        const firer    = turnId === a.sessionId ? a : (turnId === b.sessionId ? b : null);
 
-      if (!advanced) {
-        throw new Error(
-          `Tick did not advance within 15 s (${roomCode}, ` +
-            `turn=${turnsPlayed}, prevTick=${prevTick}, phase=${a.state.phase})`,
+        if (firer) {
+          // Select nuke if available (radius=60, damage=100, 2 in standard loadout).
+          // Falls back to missile (radius=30, damage=60) then baby-missile (infinite).
+          const myTank = a.state.tanks.get(firer.sessionId) as any;
+          const inventory = myTank?.inventory as Map<string, number> | undefined;
+          for (const w of ["nuke", "missile", "baby-missile"] as const) {
+            const count = inventory?.get(w) ?? (w === "baby-missile" ? 1 : 0);
+            if (count !== 0) { // -1 = infinite; > 0 = have some
+              firer.send("select-weapon", { weaponId: w });
+              break;
+            }
+          }
+
+          // Angle=90 fires straight up; the shot returns to the same x column,
+          // landing on (or very close to) the firing tank — guaranteed self-damage
+          // regardless of wind, terrain type, or opponent position.
+          firer.send("fire", { angle: 90, power: 500 });
+        }
+        // If firer is null (e.g., turn player is somehow not a/b), the 5 s turn
+        // timer will handle it.
+
+        // Wait for tick to advance (turn completed) OR phase to change.
+        // 25 s guards against CI timer jitter on the real-time 60 Hz sim.
+        const advanced = await waitForState(
+          a,
+          (s) => s.phase !== "playing" || (s.tick as number) > prevTick,
+          25_000,
         );
+
+        if (!advanced) {
+          throw new Error(
+            `Tick did not advance within 25 s (${roomCode}, ` +
+              `turn=${turnsPlayed}, prevTick=${prevTick}, phase=${a.state.phase})`,
+          );
+        }
+
+        if (a.state.phase === "playing") {
+          assertNoViolations(a.state, `playing:after-turn-${turnsPlayed}`);
+        }
+        continue;
       }
 
-      if (a.state.phase === "playing") {
-        assertNoViolations(a.state, `playing:after-turn-${turnsPlayed}`);
-      }
-      continue;
+      // Unknown phase.
+      throw new Error(`Unexpected phase '${phase}' (${roomCode})`);
     }
 
-    // Unknown phase.
-    throw new Error(`Unexpected phase '${phase}' (${roomCode})`);
+    // ── Final invariant check ──────────────────────────────────────────────
+    expect(a.state.phase, `Match ended in unexpected phase (${roomCode})`).toBe("ended");
+    assertNoViolations(a.state, "ended:final");
+  } finally {
+    // Always disconnect both clients — prevents server-side turn/round timers
+    // from bleeding into the next test when an assertion throws mid-match.
+    await a.leave();
+    await b.leave();
   }
-
-  // ── Final invariant check ────────────────────────────────────────────────
-  expect(a.state.phase, `Match ended in unexpected phase (${roomCode})`).toBe("ended");
-  assertNoViolations(a.state, "ended:final");
-
-  await a.leave();
-  await b.leave();
 }
 
 // ── Test suite ────────────────────────────────────────────────────────────────
