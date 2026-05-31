@@ -131,7 +131,10 @@ const httpServer = createServer((req, res) => {
   const mDebug = req.url?.match(/^\/debug\/([^/]+)$/);
   if (mDebug && req.method === "GET") {
     if (!debugStore) {
-      res.writeHead(404, { "Content-Type": "application/json" });
+      res.writeHead(404, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
       res.end('{"error":"debug capture disabled"}');
       return;
     }
