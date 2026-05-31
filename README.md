@@ -37,7 +37,7 @@ Open two terminals from the project root:
 # Terminal 1 — game server (Colyseus on port 2567)
 pnpm --filter @se/server dev
 
-# Terminal 2 — web client (Vite on port 5173)
+# Terminal 2 — web client (Vite on port 5183)
 pnpm --filter @se/client dev
 ```
 
@@ -47,7 +47,20 @@ Or run both together in one terminal:
 pnpm dev
 ```
 
-Then open **http://127.0.0.1:5173** in two browser tabs (or share the URL with another player on the same machine or network).
+Then open **http://127.0.0.1:5183** in two browser tabs (or share the URL with another player on the same machine or network).
+
+---
+
+## Managing processes
+
+| Command | Effect |
+|---|---|
+| `pnpm kill` | Kill server (port 2567) + client (port 5183) |
+| `pnpm kill:server` | Kill server only |
+| `pnpm kill:client` | Kill client only |
+| `pnpm restart` | Kill both, then `pnpm dev` |
+
+---
 
 ### How to start a match
 

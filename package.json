@@ -13,7 +13,11 @@
     "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "loadtest": "pnpm --filter @se/loadtest start"
+    "loadtest": "pnpm --filter @se/loadtest start",
+    "kill:server": "lsof -ti tcp:2567 | xargs kill -9 2>/dev/null || true",
+    "kill:client": "lsof -ti tcp:5183 | xargs kill -9 2>/dev/null || true",
+    "kill": "pnpm kill:server && pnpm kill:client",
+    "restart": "pnpm kill && pnpm dev"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
