@@ -69,7 +69,7 @@ describe("computeDamage — reactive blast math", () => {
     const damages = computeDamage({ x: 100, y: 100 }, blastWeapon, targets);
     expect(damages).toHaveLength(1);
     // At dist=0: amount = floor(40 * (1 - 0.4*0/60)) = 40
-    expect(damages[0].hullDamage).toBe(40);
+    expect(damages[0]!.hullDamage).toBe(40);
   });
 
   it("tank ~200px away takes 0 damage (outside radius=60)", () => {
@@ -83,8 +83,8 @@ describe("computeDamage — reactive blast math", () => {
     const damages = computeDamage({ x: 100, y: 100 }, blastWeapon, targets);
     expect(damages).toHaveLength(1);
     // amount = floor(40 * (1 - 0.4*59/60)) = floor(40 * 0.6067) = floor(24.27) = 24
-    expect(damages[0].hullDamage).toBeGreaterThan(0);
-    expect(damages[0].hullDamage).toBeLessThan(40);
+    expect(damages[0]!.hullDamage).toBeGreaterThan(0);
+    expect(damages[0]!.hullDamage).toBeLessThan(40);
   });
 });
 
