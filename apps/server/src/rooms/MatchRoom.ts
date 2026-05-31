@@ -242,6 +242,7 @@ export class MatchRoom extends Room<MatchState> {
       const registry = [
         ...Array.from(WEAPON_REGISTRY.values()).map((w) => ({ id: w.id, price: w.price, packSize: w.packSize })),
         ...Array.from(ITEM_REGISTRY.values()).map((i) => ({ id: i.id, price: i.price, packSize: i.packSize })),
+        ...Array.from(SHIELD_DEFS.values()).map((s) => ({ id: s.id, price: s.price, packSize: s.packSize })),
       ];
 
       const result = validatePurchase(

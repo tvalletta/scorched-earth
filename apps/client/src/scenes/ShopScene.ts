@@ -1,6 +1,6 @@
 import type { Room } from "colyseus.js";
 import type { MatchState } from "@se/shared";
-import { SHOP_DURATION_MS } from "@se/shared";
+import { SHOP_DURATION_MS, SHIELD_DEFS } from "@se/shared";
 import { WEAPON_REGISTRY, ITEM_REGISTRY } from "@se/game";
 
 export interface RoundEarningsInfo {
@@ -243,8 +243,35 @@ export class ShopScene {
 
     const defenseGrid = this.el.querySelector<HTMLDivElement>("#shop-defense-grid")!;
     defenseGrid.innerHTML = "";
+
+    // Old shield ids are superseded by SHIELD_DEFS — skip them from ITEM_REGISTRY
+    const OLD_SHIELD_IDS = new Set(["shield", "heavy-shield", "super-magnetic", "force-shield"]);
+
+    // Render the 5 May-26 shields from SHIELD_DEFS
+    for (const def of SHIELD_DEFS.values()) {
+      if (def.packSize === 0) continue;
+      const card = document.createElement("div");
+      card.dataset.itemId = def.id;
+      card.style.cssText = [
+        "background:rgba(255,255,255,0.04);border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;",
+        "border:1px solid rgba(255,255,255,0.1);transition:border-color 0.1s;min-width:70px;",
+      ].join("");
+      const ammo = this.localInventory.get(def.id) ?? 0;
+      card.innerHTML = `
+        <div style="font-size:22px;margin-bottom:3px;">🛡️</div>
+        <div style="font-size:9px;font-weight:bold;color:#e2e8f0;line-height:1.2;margin-bottom:3px;">${def.label}</div>
+        ${ammo > 0 ? `<div style="color:#fbbf24;font-size:8px;margin-bottom:2px;">×${ammo}</div>` : `<div style="font-size:8px;margin-bottom:2px;">&nbsp;</div>`}
+        <div style="color:#fbbf24;font-size:9px;margin-bottom:5px;">$${def.price.toLocaleString()}</div>
+        <div class="buy-btn" style="background:linear-gradient(180deg,#ff8c00,#cc5500);border:1px solid #7f2d00;border-radius:4px;padding:2px 4px;font-size:8px;cursor:pointer;color:#fff;">BUY${def.packSize > 1 ? ` ×${def.packSize}` : ""}</div>
+      `;
+      card.querySelector(".buy-btn")!.addEventListener("click", () => this.onBuyItem(def.id));
+      defenseGrid.appendChild(card);
+    }
+
+    // Render non-shield items from ITEM_REGISTRY
     for (const item of ITEM_REGISTRY.values()) {
       if (item.packSize === 0) continue;
+      if (OLD_SHIELD_IDS.has(item.id)) continue; // old shields replaced by SHIELD_DEFS above
       const card = document.createElement("div");
       card.dataset.itemId = item.id;
       card.style.cssText = [
@@ -284,7 +311,9 @@ export class ShopScene {
   }
 
   private onBuyItem(itemId: string): void {
-    const item = ITEM_REGISTRY.get(itemId);
+    // Check both SHIELD_DEFS (new May-26 shields) and ITEM_REGISTRY (non-shield items)
+    const shieldDef = SHIELD_DEFS.get(itemId);
+    const item = shieldDef ?? ITEM_REGISTRY.get(itemId);
     if (!item || item.packSize === 0) return;
     if (this.localCash < item.price) return;
 
@@ -324,11 +353,11 @@ export class ShopScene {
       btn.textContent = canAfford ? "BUY" : "CAN\'T AFFORD";
     }
 
-    // Defense item cards
+    // Defense item cards (shields from SHIELD_DEFS, other items from ITEM_REGISTRY)
     const defenseCards = this.el.querySelectorAll<HTMLDivElement>("[data-item-id]");
     for (const card of defenseCards) {
       const id = card.dataset.itemId!;
-      const item = ITEM_REGISTRY.get(id);
+      const item = SHIELD_DEFS.get(id) ?? ITEM_REGISTRY.get(id);
       if (!item) continue;
       const canAfford = this.localCash >= item.price;
       card.style.borderColor = canAfford ? "rgba(255,140,0,0.4)" : "rgba(255,255,255,0.1)";
