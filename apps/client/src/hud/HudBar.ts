@@ -1,5 +1,6 @@
 import type { Room } from 'colyseus.js';
 import type { MatchState } from '@se/shared';
+import { SHIELD_DEFS } from '@se/shared';
 import { WEAPON_REGISTRY } from '@se/game';
 
 const TERRAIN_LABELS: Record<string, string> = {
@@ -25,15 +26,30 @@ const WEAPON_ICONS: Record<string, string> = {
   'tunneler': '🕳️', 'napalm': '🔥', 'hot-napalm': '🌶️', 'fireball': '☄️',
 };
 
+const WEAPON_CATEGORIES: Record<string, string> = {
+  'baby-missile': 'BALLISTIC', 'missile': 'BALLISTIC', 'baby-nuke': 'BALLISTIC',
+  'nuke': 'BALLISTIC', 'funky-bomb': 'BALLISTIC', 'mirv': 'BALLISTIC',
+  'deaths-head': 'BALLISTIC', 'deaths-knell': 'BALLISTIC',
+  'triple-warhead': 'BALLISTIC', 'pineapple': 'BALLISTIC', 'funky-nuke': 'BALLISTIC',
+  'plasma-ball': 'ENERGY', 'plasma-blast': 'ENERGY', 'laser': 'ENERGY', 'plasma-wave': 'ENERGY',
+  'napalm': 'FIRE', 'hot-napalm': 'FIRE', 'fireball': 'FIRE',
+  'leapfrog': 'UTILITY', 'roller': 'UTILITY', 'heavy-roller': 'UTILITY',
+  'tracer': 'UTILITY', 'smoke': 'UTILITY',
+  'dirt-clod': 'UTILITY', 'dirt-ball': 'UTILITY', 'liquid-dirt': 'UTILITY',
+  'sandhog': 'UTILITY', 'tunneler': 'UTILITY',
+};
+
+const CATEGORY_TABS = ['ALL', 'BALLISTIC', 'FIRE', 'ENERGY', 'UTILITY'] as const;
+
 export class HudBar {
   el: HTMLDivElement;
   private onAimChange: ((angle: number, power: number) => void) | null = null;
   private currentAngle = 90;
   private currentPower = 500;
-  private weaponKeys: string[];
-  private carouselCenter = 0;
+  private activeCategory: string = 'ALL';
   private selectedKey = 'baby-missile';
-  private lastCarouselKey = '';
+  private lastGridKey = '';
+  private lastWheelMs = 0;
   private localInventory: Map<string, number> = new Map();
   private localTank: { setAngle(deg: number): void } | null = null;
   private maxFuel = 0;
@@ -45,7 +61,6 @@ export class HudBar {
   private onMouseUp: () => void = () => {};
 
   constructor(private room: Room<MatchState>) {
-    this.weaponKeys = Array.from(WEAPON_REGISTRY.keys());
     this.el = document.createElement('div');
     this.el.className = 'interactive';
     this.el.style.cssText = [
@@ -57,10 +72,10 @@ export class HudBar {
     ].join('');
     this.el.innerHTML = this.buildHTML();
     document.getElementById('ui')!.appendChild(this.el);
-    this.carouselCenter = Math.max(0, this.weaponKeys.indexOf('baby-missile'));
     this.bindEvents();
     this.drawDial();
-    this.renderCarousel();
+    this.renderTabs();
+    this.renderGrid();
   }
 
   setAimChangeCallback(fn: (angle: number, power: number) => void): void { this.onAimChange = fn; }
@@ -75,18 +90,14 @@ export class HudBar {
 
     if (myTank) {
       // The local HUD owns angle/power/weapon-selection — do NOT sync them back
-      // from server state every frame (that clobbered keyboard input + carousel
-      // scrolling). Only re-render the carousel when its contents actually
+      // from server state every frame (that clobbered keyboard input + grid
+      // scrolling). Only re-render the grid when its contents actually
       // change — re-rendering every frame destroyed chip elements between
       // mousedown and click, so clicks never registered.
       this.localInventory = new Map(myTank.inventory.entries());
-      if (this.carouselKey() !== this.lastCarouselKey) this.renderCarousel();
+      const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',');
+      if (gridKey !== this.lastGridKey) this.renderGrid();
     }
-  }
-
-  private carouselKey(): string {
-    return this.carouselCenter + '|' +
-      Array.from(this.localInventory.entries()).map(([k, v]) => `${k}:${v}`).join(',');
   }
 
   /** Wind + round + terrain/wall — folded in from the old WindArrow/RoundInfo. */
@@ -163,16 +174,13 @@ export class HudBar {
         <div id="hud-power-val" style="font:900 14px 'Impact',fantasy;color:#fff;letter-spacing:1px;">500</div>
       </div>
 
-      <!-- Weapon carousel -->
-      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;">
-        <div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:center;">
-          <button id="hud-prev" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);
-            color:#fff;width:28px;height:28px;border-radius:5px;cursor:pointer;font-size:16px;flex-shrink:0;">‹</button>
-          <div id="hud-carousel" style="flex:1;display:flex;gap:6px;align-items:center;justify-content:center;overflow:hidden;"></div>
-          <button id="hud-next" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);
-            color:#fff;width:28px;height:28px;border-radius:5px;cursor:pointer;font-size:16px;flex-shrink:0;">›</button>
+      <!-- Weapon grid panel -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;border-left:1px solid rgba(255,255,255,0.07);border-right:1px solid rgba(255,255,255,0.07);">
+        <div id="hud-tabs" style="display:flex;gap:3px;padding:4px 8px 3px;border-bottom:1px solid rgba(255,255,255,0.07);align-items:center;">
         </div>
-        <div id="hud-fuel" style="display:none;align-items:center;gap:6px;">
+        <div id="hud-grid" style="flex:1;display:flex;gap:4px;padding:4px 8px;align-items:center;overflow:hidden;">
+        </div>
+        <div id="hud-fuel" style="display:none;align-items:center;gap:6px;padding:0 8px 3px;">
           <span style="font:bold 8px sans-serif;color:#4ecdc4;letter-spacing:1px;">FUEL ·A/D·</span>
           <div style="width:90px;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
             <div id="hud-fuel-fill" style="height:100%;width:100%;background:#4ecdc4;"></div>
@@ -197,15 +205,14 @@ export class HudBar {
   }
 
   private bindEvents(): void {
-    this.el.querySelector('#hud-prev')!.addEventListener('click', () => this.scrollCarousel(-1));
-    this.el.querySelector('#hud-next')!.addEventListener('click', () => this.scrollCarousel(1));
-
-    // Scroll wheel (horizontal or vertical) cycles the weapon carousel.
-    const carousel = this.el.querySelector<HTMLDivElement>('#hud-carousel');
-    carousel?.addEventListener('wheel', (e: WheelEvent) => {
+    const gridEl = this.el.querySelector<HTMLDivElement>('#hud-grid');
+    gridEl?.addEventListener('wheel', (e: WheelEvent) => {
       e.preventDefault();
+      const now = Date.now();
+      if (now - this.lastWheelMs < 150) return;
+      this.lastWheelMs = now;
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (delta !== 0) this.scrollCarousel(delta > 0 ? 1 : -1);
+      if (delta !== 0) this.scrollWeapon(delta > 0 ? 1 : -1);
     }, { passive: false });
 
     const fireBtn = this.el.querySelector<HTMLButtonElement>('#hud-fire')!;
@@ -254,8 +261,8 @@ export class HudBar {
       case 'ArrowRight': this.setAngle(this.currentAngle + (e.shiftKey ? 10 : 2)); e.preventDefault(); break;
       case 'ArrowUp':    this.setPower(this.currentPower + (e.shiftKey ? 100 : 20)); e.preventDefault(); break;
       case 'ArrowDown':  this.setPower(this.currentPower - (e.shiftKey ? 100 : 20)); e.preventDefault(); break;
-      case 'q': case 'Q': this.scrollCarousel(-1); break;
-      case 'e': case 'E': this.scrollCarousel(1); break;
+      case 'q': case 'Q': this.scrollWeapon(-1); break;
+      case 'e': case 'E': this.scrollWeapon(1); break;
       case ' ': if (!this.el.querySelector<HTMLButtonElement>('#hud-fire')!.disabled) { this.fire(); e.preventDefault(); } break;
     }
     if (e.key === 'a' || e.key === 'A') { this.startDrive('left'); e.preventDefault(); }
@@ -334,58 +341,135 @@ export class HudBar {
     ctx.stroke();
   }
 
-  private scrollCarousel(delta: number): void {
-    const n = this.weaponKeys.length;
-    this.carouselCenter = (this.carouselCenter + delta + n) % n; // wraps forever
-    this.selectedKey = this.weaponKeys[this.carouselCenter]!;
-    this.room.send('select-weapon', { weaponId: this.selectedKey });
-    this.renderCarousel();
-  }
-
-  private selectWeaponAt(index: number): void {
-    const n = this.weaponKeys.length;
-    this.carouselCenter = ((index % n) + n) % n;
-    this.selectedKey = this.weaponKeys[this.carouselCenter]!;
-    this.room.send('select-weapon', { weaponId: this.selectedKey });
-    this.renderCarousel();
-  }
-
-  // Windowed, infinitely-wrapping carousel that fills the width between the
-  // arrows; every chip shows its weapon icon + ammo so you can see what's next.
-  private renderCarousel(): void {
-    const container = this.el.querySelector<HTMLDivElement>('#hud-carousel');
-    if (!container) return;
-    const total = this.weaponKeys.length;
-    const HALF = 4; // 9 chips across the bar
-    let html = '';
-    for (let offset = -HALF; offset <= HALF; offset++) {
-      const key = this.weaponKeys[(this.carouselCenter + offset + total) % total]!;
-      const isCenter = offset === 0;
-      const dist = Math.abs(offset);
-      const ammo = this.localInventory.get(key);
-      const ammoStr = ammo === undefined || ammo < 0 ? '∞' : String(ammo);
-      const icon = WEAPON_ICONS[key] ?? '💣';
-      const iconSize = isCenter ? 28 : dist === 1 ? 23 : 20;
-      const opacity = isCenter ? '1' : dist === 1 ? '0.8' : dist === 2 ? '0.6' : '0.42';
-      const border = isCenter ? '2px solid #ff8c00' : '1px solid rgba(255,255,255,0.12)';
-      const bg = isCenter ? 'rgba(255,140,0,0.14)' : 'rgba(0,0,0,0.4)';
-      const ammoColor = ammo === 0 ? '#64748b' : '#ff8c00';
-      html += `<div data-weapon-key="${key}" title="${humanize(key)}" style="flex:1 1 0;min-width:0;max-width:120px;height:62px;
-        border:${border};border-radius:8px;background:${bg};opacity:${opacity};cursor:pointer;
-        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-        padding:2px;box-sizing:border-box;transition:all 0.1s;overflow:hidden;">
-        <span style="font-size:${iconSize}px;line-height:1;">${icon}</span>
-        ${isCenter ? `<span style="font:bold 8px system-ui;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${humanize(key)}</span>` : ''}
-        <span style="font:bold ${isCenter ? 10 : 8}px monospace;color:${ammoColor};">${ammoStr}</span>
-      </div>`;
+  private scrollWeapon(delta: number): void {
+    const eligible: string[] = [];
+    for (const weapon of WEAPON_REGISTRY.values()) {
+      const cat = WEAPON_CATEGORIES[weapon.id] ?? 'BALLISTIC';
+      if (this.activeCategory !== 'ALL' && cat !== this.activeCategory) continue;
+      const count = this.localInventory.get(weapon.id);
+      if (count === undefined || count === 0) continue;
+      eligible.push(weapon.id);
     }
-    container.innerHTML = html;
-    container.querySelectorAll<HTMLDivElement>('[data-weapon-key]').forEach((card) => {
-      card.addEventListener('click', () => {
-        const i = this.weaponKeys.indexOf(card.dataset.weaponKey!);
-        if (i >= 0) this.selectWeaponAt(i);
+    if (eligible.length === 0) return;
+    const current = eligible.indexOf(this.selectedKey);
+    const next = ((current < 0 ? 0 : current) + delta + eligible.length) % eligible.length;
+    this.selectedKey = eligible[next]!;
+    this.room.send('select-weapon', { weaponId: this.selectedKey });
+    this.renderGrid();
+  }
+
+  private renderTabs(): void {
+    const tabsEl = this.el.querySelector<HTMLDivElement>('#hud-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    for (const tab of CATEGORY_TABS) {
+      const btn = document.createElement('button');
+      btn.textContent = tab;
+      const active = this.activeCategory === tab;
+      btn.style.cssText = active
+        ? 'background:linear-gradient(180deg,#ff8c00,#cc5500);border:1.5px solid #7f2d00;border-radius:4px;padding:2px 7px;color:#fff;font:bold 8px system-ui;cursor:pointer;letter-spacing:1px;'
+        : 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.13);border-radius:4px;padding:2px 7px;color:#94a3b8;font:bold 8px system-ui;cursor:pointer;letter-spacing:1px;';
+      btn.addEventListener('click', () => {
+        this.activeCategory = tab;
+        this.renderTabs();
+        this.renderGrid();
       });
-    });
-    this.lastCarouselKey = this.carouselKey();
+      tabsEl.appendChild(btn);
+    }
+    const hint = document.createElement('span');
+    hint.style.cssText = 'font:bold 7px sans-serif;color:#475569;letter-spacing:1px;margin-left:auto;';
+    hint.textContent = '← Q / E →';
+    tabsEl.appendChild(hint);
+  }
+
+  private renderGrid(): void {
+    const grid = this.el.querySelector<HTMLDivElement>('#hud-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    for (const weapon of WEAPON_REGISTRY.values()) {
+      const cat = WEAPON_CATEGORIES[weapon.id] ?? 'BALLISTIC';
+      if (this.activeCategory !== 'ALL' && cat !== this.activeCategory) continue;
+      this.appendWeaponChip(grid, weapon.id);
+    }
+
+    if (this.activeCategory === 'ALL') {
+      for (const def of SHIELD_DEFS.values()) {
+        this.appendShieldChip(grid, def.id);
+      }
+    }
+
+    const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',');
+    this.lastGridKey = gridKey;
+  }
+
+  private appendWeaponChip(grid: HTMLDivElement, weaponId: string): void {
+    const count = this.localInventory.get(weaponId);
+    const owned = count !== undefined && (count < 0 || count > 0);
+    const selected = weaponId === this.selectedKey;
+    const ammoStr = count !== undefined && count < 0 ? '∞' : String(count ?? 0);
+    const icon = WEAPON_ICONS[weaponId] ?? '💣';
+
+    const chip = document.createElement('div');
+    chip.dataset.weaponKey = weaponId;
+
+    if (selected) {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:2px solid #ff8c00;background:rgba(255,140,0,0.18);box-shadow:0 0 14px rgba(255,140,0,0.45);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:pointer;`;
+    } else if (owned) {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:1.5px solid rgba(255,180,0,0.45);background:rgba(255,140,0,0.07);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:pointer;`;
+    } else {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:not-allowed;opacity:0.35;filter:grayscale(0.6);`;
+    }
+
+    chip.innerHTML = `
+      <span style="font-size:${selected ? 24 : 20}px;line-height:1;">${icon}</span>
+      <span style="font:bold 7px system-ui;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;padding:0 2px;">${humanize(weaponId)}</span>
+      <span style="font:900 ${selected ? 17 : 14}px Impact;color:${selected ? '#ffd24a' : owned ? '#ff8c00' : '#475569'};">${ammoStr}</span>
+    `;
+
+    if (owned || selected) {
+      chip.addEventListener('click', () => {
+        this.selectedKey = weaponId;
+        this.room.send('select-weapon', { weaponId });
+        this.renderGrid();
+        this.renderTabs();
+      });
+    }
+    grid.appendChild(chip);
+  }
+
+  private appendShieldChip(grid: HTMLDivElement, shieldId: string): void {
+    const count = this.localInventory.get(shieldId) ?? 0;
+    const myTank = this.room.state.tanks.get(this.room.sessionId);
+    const isActive = myTank?.shieldId === shieldId && (myTank?.shieldHp ?? 0) > 0;
+    const owned = count > 0 || isActive;
+
+    const chip = document.createElement('div');
+    chip.dataset.shieldKey = shieldId;
+
+    if (isActive) {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:2px solid #22c55e;background:rgba(34,197,94,0.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:pointer;`;
+    } else if (owned) {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:1.5px solid rgba(255,180,0,0.45);background:rgba(255,140,0,0.07);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:pointer;`;
+    } else {
+      chip.style.cssText = `flex:1 1 0;min-width:0;height:76px;border-radius:7px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;cursor:not-allowed;opacity:0.35;filter:grayscale(0.6);`;
+    }
+
+    const label = isActive ? 'ACTIVE' : 'EQUIP';
+    const labelColor = isActive ? '#22c55e' : owned ? '#ff8c00' : '#475569';
+    const shieldName = shieldId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    chip.innerHTML = `
+      <span style="font-size:20px;line-height:1;">🛡️</span>
+      <span style="font:bold 7px system-ui;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;padding:0 2px;">${shieldName}</span>
+      <span style="font:900 11px Impact;color:${labelColor};">${label}</span>
+    `;
+
+    if (owned) {
+      chip.addEventListener('click', () => {
+        this.room.send('equip-shield', { shieldId });
+        this.lastGridKey = '';
+      });
+    }
+    grid.appendChild(chip);
   }
 }
