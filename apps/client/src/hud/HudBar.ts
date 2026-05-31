@@ -95,7 +95,7 @@ export class HudBar {
       // change — re-rendering every frame destroyed chip elements between
       // mousedown and click, so clicks never registered.
       this.localInventory = new Map(myTank.inventory.entries());
-      const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',');
+      const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',') + '|' + (myTank.shieldId ?? '') + ':' + (myTank.shieldHp ?? 0);
       if (gridKey !== this.lastGridKey) this.renderGrid();
     }
   }
@@ -432,7 +432,6 @@ export class HudBar {
         this.selectedKey = weaponId;
         this.room.send('select-weapon', { weaponId });
         this.renderGrid();
-        this.renderTabs();
       });
     }
     grid.appendChild(chip);
