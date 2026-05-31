@@ -217,11 +217,15 @@ function genPlateau(opts: TerrainOptions): Int16Array {
     let y: number;
     if (x <= leftEdge) {
       const t = x / leftEdge;
-      y = floorY + (plateauY - floorY) * t;
+      const curve = smoothstep(t);
+      const jitter = (noise[x] as number) * 8;
+      y = floorY + (plateauY - floorY) * curve + jitter;
     } else if (x >= rightEdge) {
       const last = width - 1 - rightEdge;
       const t = last > 0 ? (x - rightEdge) / last : 1;
-      y = plateauY + (floorY - plateauY) * t;
+      const curve = smoothstep(t);
+      const jitter = (noise[x] as number) * 8;
+      y = plateauY + (floorY - plateauY) * curve + jitter;
     } else {
       y = plateauY + (noise[x] as number) * 2;
     }
