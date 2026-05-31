@@ -25,7 +25,7 @@ describe("Roller physics", () => {
       projectiles: [{ id: "r1", x: 398, y: 500, vx: 0, vy: 0,
                       weapon: ROLLER, ownerId: "p1", apexReached: true,
                       isRolling: true, rollDir: 1 }],
-      tanks: [{ sessionId: "p2", x: 400, y: 500, shieldHp: 0, shieldMaxHp: 0, shieldRadius: 0, shieldType: "" }],
+      tanks: [{ sessionId: "p2", x: 400, y: 500, shieldHp: 0, shieldMaxHp: 0, shieldRadius: 0, shieldType: "", hpCostFraction: 0 }],
       terrain, terrainWidth: 1600, terrainHeight: 900,
       wind: 0, gravity: 0, dt: 1/60, wallMode: "none",
     });
