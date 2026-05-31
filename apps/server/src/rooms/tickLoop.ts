@@ -24,6 +24,7 @@ export function buildStepTanks(state: MatchState): StepTankInfo[] {
         shieldMaxHp: t.shieldMaxHp,
         shieldRadius: def?.radius ?? 0,
         shieldType: (def?.type ?? "") as StepTankInfo["shieldType"],
+        hpCostFraction: def?.hpCostFraction ?? 0,
       };
     });
 }

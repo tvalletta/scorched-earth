@@ -125,7 +125,8 @@ export interface StepTankInfo {
   shieldHp: number;
   shieldMaxHp: number;
   shieldRadius: number;
-  shieldType: "absorb" | "bend" | "";
+  shieldType: "absorb" | "deflect" | "bend" | "explode" | "";
+  hpCostFraction: number; // 0 when no shield
 }
 
 export interface StepInput {
@@ -143,10 +144,10 @@ export interface StepInput {
 
 export type StepEvent =
   | { kind: "terrain-impact"; projectileId: string; x: number; y: number; weapon: WeaponDef; ownerId: string; layer?: "floor" | "ceiling" }
-  | { kind: "shield-absorb"; projectileId: string; targetId: string;
-      hpBefore: number; hpAfter: number; absorbed: number; overflow: number;
-      ownerId: string }
+  | { kind: "shield-absorb";  projectileId: string; targetId: string; hpBefore: number; hpAfter: number; piercedHull: number; ownerId: string }
+  | { kind: "shield-deflect"; projectileId: string; targetId: string; newVx: number; newVy: number; hpBefore: number; hpAfter: number; piercedHull: number; ownerId: string }
   | { kind: "shield-bend";    projectileId: string; targetId: string; impulseX: number; impulseY: number }
+  | { kind: "shield-explode"; projectileId: string; targetId: string; x: number; y: number; piercedHull: number; weapon: WeaponDef; ownerId: string }
   | { kind: "out-of-bounds";  projectileId: string }
   | { kind: "mirv-split";     projectileId: string; x: number; y: number; children: LiveProjectile[] }
   | { kind: "patriot-intercept"; patriotId: string; targetId: string; x: number; y: number }
