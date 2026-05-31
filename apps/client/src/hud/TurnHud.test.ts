@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
+import type { MatchState } from "@se/shared";
 import { TurnHud } from "./TurnHud";
 
-function mkState(over: Partial<any> = {}) {
+function mkState(over: Partial<Record<string, unknown>> = {}): MatchState {
   const tanks = new Map<string, any>([
     ["A", { sessionId: "A", nickname: "Red", color: "red", hp: 82, alive: true }],
     ["B", { sessionId: "B", nickname: "Blue", color: "blue", hp: 40, alive: true }],
@@ -12,7 +13,7 @@ function mkState(over: Partial<any> = {}) {
     phase: "playing", currentTurnPlayerId: "A", turnTimerMs: 30000,
     turnDeadlineMs: Date.now() + 18000, round: 1, maxRounds: 5,
     tanks, aiSlots: [], ...over,
-  };
+  } as unknown as MatchState;
 }
 
 describe("TurnHud", () => {
