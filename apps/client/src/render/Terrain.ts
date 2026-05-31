@@ -183,8 +183,8 @@ export class TerrainRenderer extends Container {
       const cy = ceil[sx]!;
       const len = 30 + rng() * 90;
       const wHalf = 8 + rng() * 12;
-      g.moveTo(sx - wHalf, cy + 6);
-      g.lineTo(sx + wHalf, cy + 6);
+      g.moveTo(sx - wHalf, cy - 30);
+      g.lineTo(sx + wHalf, cy - 30);
       g.lineTo(sx, cy + len);
       g.closePath();
       g.fill(0x1c1208);
@@ -248,8 +248,8 @@ export class TerrainRenderer extends Container {
       const by = bottom[sx]!;
       const len = 55 + rng() * 120;
       const wHalf = 10 + rng() * 14;
-      g.moveTo(sx - wHalf, by - 6);
-      g.lineTo(sx + wHalf, by - 6);
+      g.moveTo(sx - wHalf, by - 40);
+      g.lineTo(sx + wHalf, by - 40);
       g.lineTo(sx, by + len);
       g.closePath();
       g.fill(0x1c1208);
