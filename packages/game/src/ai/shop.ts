@@ -1,7 +1,7 @@
 import type { AiDifficulty } from "@se/shared";
+import { SHIELD_DEFS } from "@se/shared";
 import type { Prng } from "../rng/prng";
 import { WEAPON_REGISTRY } from "../weapons/index";
-import { ITEM_REGISTRY } from "../items/index";
 import { AI_PROFILES, WEAPON_CATEGORIES } from "./profiles";
 
 export interface ShopInput {
@@ -15,10 +15,10 @@ export interface ShopPurchase {
   itemId: string;
 }
 
-const SHIELD_IDS = ["shield", "heavy-shield", "super-magnetic", "force-shield"];
+const SHIELD_IDS = Array.from(SHIELD_DEFS.keys());
 
 // Sorted cheapest to most expensive so AI can afford as many as possible
-const SHIELD_OPTIONS = SHIELD_IDS.map(id => ITEM_REGISTRY.get(id)!).filter(Boolean)
+const SHIELD_OPTIONS = Array.from(SHIELD_DEFS.values())
   .sort((a, b) => a.price - b.price);
 
 export function shopForAi(input: ShopInput): ShopPurchase[] {

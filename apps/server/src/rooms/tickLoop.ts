@@ -111,7 +111,7 @@ export function applyStepEvent(
     const tank = state.tanks.get(event.targetId);
     if (tank) {
       tank.shieldHp = event.hpAfter;
-      if (tank.shieldHp <= 0) tank.shieldId = "";
+      if (tank.shieldHp <= 0) { tank.shieldId = ""; tank.shieldMaxHp = 0; }
       if (event.piercedHull > 0) {
         tank.hp = Math.max(0, tank.hp - event.piercedHull);
         if (tank.hp <= 0) tank.alive = false;
@@ -128,7 +128,7 @@ export function applyStepEvent(
     const tank = state.tanks.get(event.targetId);
     if (tank) {
       tank.shieldHp = event.hpAfter;
-      if (tank.shieldHp <= 0) tank.shieldId = "";
+      if (tank.shieldHp <= 0) { tank.shieldId = ""; tank.shieldMaxHp = 0; }
       if (event.piercedHull > 0) {
         tank.hp = Math.max(0, tank.hp - event.piercedHull);
         if (tank.hp <= 0) tank.alive = false;
@@ -143,7 +143,7 @@ export function applyStepEvent(
 
   if (event.kind === "shield-explode") {
     const tank = state.tanks.get(event.targetId);
-    if (tank) { tank.shieldHp = 0; tank.shieldId = ""; }
+    if (tank) { tank.shieldHp = 0; tank.shieldId = ""; tank.shieldMaxHp = 0; }
     // Reactive blast at contact — damages all alive tanks in radius incl. owner.
     const blastWeapon = {
       id: "reactive-armor",
@@ -153,17 +153,25 @@ export function applyStepEvent(
       price: 0,
       packSize: 0,
     };
+    const aliveBefore = new Set(Array.from(state.tanks.values()).filter(t => t.alive).map(t => t.sessionId));
     const targets = Array.from(state.tanks.values())
       .filter(t => t.alive)
       .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
     const blast = computeDamage({ x: event.x, y: event.y }, blastWeapon, targets);
-    for (const d of blast) {
-      const v = state.tanks.get(d.playerId);
-      if (v) { v.hp = Math.max(0, v.hp - d.hullDamage); if (v.hp <= 0) v.alive = false; }
-    }
+    applyDamagesWithChainKills(ctx, blast, 0);
     if (tank && event.piercedHull > 0) {
       tank.hp = Math.max(0, tank.hp - event.piercedHull);
       if (tank.hp <= 0) tank.alive = false;
+    }
+    // Credit damage and kills to the projectile owner
+    const ownerTank = state.tanks.get(event.ownerId);
+    if (ownerTank) {
+      const directHull = blast.reduce((s, d) => s + d.hullDamage, 0);
+      ownerTank.damageDealtThisRound += directHull;
+      const aliveAfter = new Set(Array.from(state.tanks.values()).filter(t => t.alive).map(t => t.sessionId));
+      for (const id of aliveBefore) {
+        if (!aliveAfter.has(id) && id !== event.ownerId) ownerTank.killsThisRound += 1;
+      }
     }
     broadcast("explosion", { x: event.x, y: event.y, radius: REACTIVE_BLAST.radius, weaponId: "reactive-armor" });
     broadcast("shield-hit", { targetId: event.targetId, type: "explode" });

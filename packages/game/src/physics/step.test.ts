@@ -547,6 +547,46 @@ describe("shield physics — May-26 model", () => {
     expect(r.events.find(e => e.kind === "shield-absorb")).toBeUndefined();
   });
 
+  it("deflect incoming-only guard: outward-moving projectile within radius is NOT deflected (no oscillation)", () => {
+    // Deflector tank at (110, 100).  Projectile starts at (100, 100) with vx=+10 — moving AWAY from tank
+    // (toward x direction — tank is at x=110, projectile center is at x=100 so nx=(100-110)/dist = negative,
+    // but vx=+10 moving right means it's moving away from tank at x=110... let's be explicit).
+    // Tank at x=50. Projectile at x=100 moving RIGHT (vx=+50) — away from tank.
+    // dx = projX - tankX = 100 - 50 = +50, so nx = +1 (outward points right).
+    // dot = vx*nx + vy*ny = (+50)*(+1) + 0 = +50 >= 0 → must skip.
+    const t = shieldTank({
+      x: 50, y: 100,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+    });
+    // Projectile at x=100, moving right (away from tank at x=50)
+    const p = shieldProj({ x: 100, y: 100, vx: 50, vy: 0, ownerId: "A" });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    // Should NOT emit shield-deflect — projectile is moving away
+    expect(r.events.find(e => e.kind === "shield-deflect")).toBeUndefined();
+    // Shield HP must be unchanged
+    expect(t.shieldHp).toBe(500);
+  });
+
+  it("deflect: INCOMING projectile (moving toward tank) IS still deflected", () => {
+    // Tank at x=110, projectile at x=100 moving right toward the tank (vx=+10).
+    // nx = (100 - 110)/dist = negative (points left, toward projectile from tank is left).
+    // Wait: nx = (projX - tankX)/dist = (100 - 110)/10 = -1. dot = vx*nx = 10*(-1) = -10 < 0 → deflect.
+    const t = shieldTank({
+      x: 110, y: 100,
+      shieldHp: 500, shieldMaxHp: 500,
+      shieldRadius: 70,
+      shieldType: "deflect",
+      hpCostFraction: 0.25,
+    });
+    const p = shieldProj({ x: 100, y: 100, vx: 10, vy: 0, ownerId: "A" });
+    const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
+    // MUST emit shield-deflect — projectile is incoming
+    expect(r.events.find(e => e.kind === "shield-deflect")).toBeTruthy();
+  });
+
   it("deflect-guard: deflected projectile can hit a second non-deflecting tank (survives deflect, not consumed by D)", () => {
     // This test validates that the deflectedBySessionId guard on line 274 only skips the deflecting tank itself.
     // A deflected projectile should continue forward and be able to collide with a hull of a different tank.

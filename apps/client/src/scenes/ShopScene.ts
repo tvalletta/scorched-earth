@@ -244,9 +244,6 @@ export class ShopScene {
     const defenseGrid = this.el.querySelector<HTMLDivElement>("#shop-defense-grid")!;
     defenseGrid.innerHTML = "";
 
-    // Old shield ids are superseded by SHIELD_DEFS — skip them from ITEM_REGISTRY
-    const OLD_SHIELD_IDS = new Set(["shield", "heavy-shield", "super-magnetic", "force-shield"]);
-
     // Render the 5 May-26 shields from SHIELD_DEFS
     for (const def of SHIELD_DEFS.values()) {
       if (def.packSize === 0) continue;
@@ -271,7 +268,6 @@ export class ShopScene {
     // Render non-shield items from ITEM_REGISTRY
     for (const item of ITEM_REGISTRY.values()) {
       if (item.packSize === 0) continue;
-      if (OLD_SHIELD_IDS.has(item.id)) continue; // old shields replaced by SHIELD_DEFS above
       const card = document.createElement("div");
       card.dataset.itemId = item.id;
       card.style.cssText = [

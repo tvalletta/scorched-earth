@@ -1,5 +1,5 @@
 import type { LiveProjectile, StepInput, StepResult, StepEvent } from "../types";
-import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
+import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN, MAGNETIC_FORCE_CONST, MAGNETIC_DRAIN_HP_PER_SEC } from "@se/shared";
 
 const WIND_ACCEL_SCALE = 5.0;
 const ROLLER_SPEED = 200; // px/s
@@ -206,10 +206,15 @@ export function stepProjectiles(input: StepInput): StepResult {
         break;
       }
       if (tank.shieldType === "deflect") {
+        // Incoming-only guard: dot product of velocity with outward normal.
+        // nx/ny points from tank center toward projectile (outward), so a
+        // projectile moving toward the shield has dot < 0.  If dot >= 0 the
+        // projectile is already moving away — skip to avoid oscillation.
+        const dot = p.vx * nx + p.vy * ny;
+        if (dot >= 0) continue;
         const hpBefore = tank.shieldHp;
         const hpAfter = Math.max(0, hpBefore - shieldedDamage * tank.hpCostFraction);
         tank.shieldHp = hpAfter;
-        const dot = p.vx * nx + p.vy * ny;
         p.vx = p.vx - 2 * dot * nx;
         p.vy = p.vy - 2 * dot * ny;
         deflectedBySessionId = tank.sessionId;
@@ -223,15 +228,15 @@ export function stepProjectiles(input: StepInput): StepResult {
         break;
       }
       if (tank.shieldType === "bend") {
-        const strength = 8000 / Math.max(1, dist * dist);
+        const strength = MAGNETIC_FORCE_CONST / Math.max(1, dist * dist);
         const impulseX = nx * strength * dt;
         const impulseY = ny * strength * dt;
         p.vx += impulseX;
         p.vy += impulseY;
         events.push({ kind: "shield-bend", projectileId: p.id, targetId: tank.sessionId, impulseX, impulseY });
         const existing = shieldDrains.find(d => d.sessionId === tank.sessionId);
-        if (existing) existing.hpDrain = Math.max(existing.hpDrain, 15 * dt);
-        else shieldDrains.push({ sessionId: tank.sessionId, hpDrain: 15 * dt });
+        if (existing) existing.hpDrain = Math.max(existing.hpDrain, MAGNETIC_DRAIN_HP_PER_SEC * dt);
+        else shieldDrains.push({ sessionId: tank.sessionId, hpDrain: MAGNETIC_DRAIN_HP_PER_SEC * dt });
         break;
       }
     }

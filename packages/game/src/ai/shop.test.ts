@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SHIELD_DEFS } from "@se/shared";
 import { createPrng } from "../rng/prng";
 import { shopForAi } from "./shop";
 
@@ -23,10 +24,10 @@ describe("shopForAi", () => {
     expect(purchases.length).toBeGreaterThan(0);
   });
 
-  it("moron — each itemId is a valid weapon or item id", async () => {
+  it("moron — each itemId is a valid weapon, item, or shield id", async () => {
     const { WEAPON_REGISTRY } = await import("../weapons/index");
     const { ITEM_REGISTRY } = await import("../items/index");
-    const allIds = new Set([...WEAPON_REGISTRY.keys(), ...ITEM_REGISTRY.keys()]);
+    const allIds = new Set([...WEAPON_REGISTRY.keys(), ...ITEM_REGISTRY.keys(), ...SHIELD_DEFS.keys()]);
     const purchases = shopForAi({
       cash: 50_000,
       shieldId: "",
@@ -39,26 +40,26 @@ describe("shopForAi", () => {
   });
 
   it("cyborg — always buys a shield when none equipped", () => {
-    const shieldIds = ["shield", "heavy-shield", "super-magnetic", "force-shield"];
+    const shieldIds = new Set(SHIELD_DEFS.keys());
     const purchases = shopForAi({
       cash: 50_000,
       shieldId: "",
       difficulty: "cyborg",
       prng: createPrng("cyborg-shield"),
     });
-    const boughtShield = purchases.some(p => shieldIds.includes(p.itemId));
+    const boughtShield = purchases.some(p => shieldIds.has(p.itemId));
     expect(boughtShield).toBe(true);
   });
 
   it("cyborg — does not buy a second shield if one already equipped", () => {
-    const shieldIds = ["shield", "heavy-shield", "super-magnetic", "force-shield"];
+    const shieldIds = new Set(SHIELD_DEFS.keys());
     const purchases = shopForAi({
       cash: 50_000,
-      shieldId: "shield",      // already equipped
+      shieldId: "force-field",      // already equipped (new id)
       difficulty: "cyborg",
       prng: createPrng("cyborg-no-shield"),
     });
-    const shieldPurchases = purchases.filter(p => shieldIds.includes(p.itemId));
+    const shieldPurchases = purchases.filter(p => shieldIds.has(p.itemId));
     expect(shieldPurchases.length).toBe(0);
   });
 
