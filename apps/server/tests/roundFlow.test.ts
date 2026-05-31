@@ -71,3 +71,16 @@ describe("startMatch sets round=1 and cash", () => {
     await a.leave(); await b.leave();
   });
 });
+
+describe("shop ready-gate", () => {
+  it("human player clicking ready does not close shop while AI has not yet auto-readied", async () => {
+    const a = await colyseus.sdk.joinOrCreate("match", { code: "SHOPAI1", nickname: "Human", color: "red" });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("add-ai", { difficulty: "shooter" });
+    await new Promise((r) => setTimeout(r, 50));
+    a.send("ready");                        // start match (enters "playing" phase)
+    await new Promise((r) => setTimeout(r, 200));
+    expect(a.state.aiSlots.length).toBeGreaterThan(0);
+    await a.leave();
+  });
+});

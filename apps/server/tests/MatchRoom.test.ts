@@ -359,7 +359,7 @@ describe("MatchRoom — AI slots", () => {
     await a.leave();
   });
 
-  it("AI tank is marked readyForShop immediately when shopping starts", async () => {
+  it("AI tank is NOT marked readyForShop immediately — delayed 10 s so humans can shop", async () => {
     const a = await joinMatch({ code: "AI-10", nickname: "Host", color: "red" });
     const b = await joinMatch({ code: "AI-10", nickname: "Bob", color: "blue" });
     await new Promise(r => setTimeout(r, 30));
@@ -380,7 +380,8 @@ describe("MatchRoom — AI slots", () => {
 
     if (a.state.phase === "shopping") {
       const aiTank = a.state.tanks.get("ai-0");
-      expect(aiTank?.readyForShop).toBe(true);
+      // AI ready-flag is delayed 10 s — should still be false immediately after shop opens
+      expect(aiTank?.readyForShop).toBe(false);
     }
     await a.leave(); await b.leave();
   });

@@ -731,7 +731,13 @@ export class MatchRoom extends Room<MatchState> {
           }
         }
       }
-      tank.readyForShop = true;
+      // Delay AI ready-flag so human players have time to shop.
+      this.clock.setTimeout(() => {
+        if (this.state.phase !== "shopping") return;
+        tank.readyForShop = true;
+        const livingPlayers = Array.from(this.state.tanks.values()).filter((t) => t.alive);
+        if (livingPlayers.every((t) => t.readyForShop)) this.advanceAfterShop();
+      }, 10_000);
     }
 
     this.shopTimerHandle = this.clock.setTimeout(() => {
