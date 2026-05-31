@@ -11,7 +11,7 @@ import { CageRenderer } from "../render/Cage";
 import { createTankView } from "../render/Tank";
 import { ProjectileRenderer } from "../render/Projectile";
 import { PatriotRenderer } from "../render/Patriot";
-import { Explosion } from "../render/Explosion";
+import { Explosion, explosionStyleFor } from "../render/Explosion";
 import { HudBar } from '../hud/HudBar';
 import { PlayerStrip } from '../hud/PlayerStrip';
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
@@ -95,6 +95,13 @@ export class MatchScene {
       }
     });
     room.onMessage("damage-applied", (msg) => this.onDamage(msg));
+    room.onMessage("explosion", (msg: { x: number; y: number; radius: number; weaponId: string }) => {
+      const r = msg.radius || 20;
+      const ex = new Explosion(msg.x, msg.y, r, explosionStyleFor(msg.weaponId));
+      this.world.addChild(ex);
+      this.activeAnims.push(ex);
+      this.camera?.shake(r);
+    });
     room.onMessage("burn-zone-start", (msg: { x: number; width: number; turnsLeft: number }) => {
       this.activeZones.push({ kind: "burn-zone", x: msg.x, width: msg.width });
       this.terrain?.updateZones(this.activeZones);
@@ -329,14 +336,9 @@ export class MatchScene {
     document.getElementById("ui")!.appendChild(banner);
   }
 
-  private onDamage(msg: { sessionId?: string; damage?: number; x?: number; y?: number; radius?: number }) {
-    const blastRadius = msg.radius ?? 20;
-    if (msg.x !== undefined && msg.y !== undefined) {
-      const ex = new Explosion(msg.x, msg.y, blastRadius);
-      this.world.addChild(ex);
-      this.activeAnims.push(ex);
-    }
-    this.camera?.shake(blastRadius);
+  private onDamage(_msg: { damages?: Array<{ playerId: string; before: number; after: number }>; wave?: number }) {
+    // HP changes render via the tank state listener; the blast visual + shake
+    // are driven by the dedicated "explosion" event (which carries the weapon).
   }
 
   private onPhaseChange(phase: MatchPhase): void {

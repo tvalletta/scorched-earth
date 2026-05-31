@@ -3,6 +3,26 @@ import { PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
 
 const WIND_ACCEL_SCALE = 5.0;
 const ROLLER_SPEED = 200; // px/s
+const TANK_HIT_RADIUS = 18; // hull half-width for direct-hit detection (px)
+
+/** Squared distance from point P to line segment AB. */
+function pointToSegmentDistSq(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number,
+): number {
+  const abx = bx - ax, aby = by - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq === 0) {
+    // Degenerate segment — just measure to point A
+    const dx = px - ax, dy = py - ay;
+    return dx * dx + dy * dy;
+  }
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / lenSq));
+  const cx = ax + t * abx, cy = ay + t * aby;
+  const dx = px - cx, dy = py - cy;
+  return dx * dx + dy * dy;
+}
 
 export function initialVelocityFromAnglePower(angle: number, power: number): { vx: number; vy: number } {
   const a = (angle * Math.PI) / 180;
@@ -85,9 +105,11 @@ export function stepProjectiles(input: StepInput): StepResult {
       continue; // skip normal physics for rolling projectile
     }
 
-    // 1. Apply physics — capture prevVy before gravity so apex detection is correct
+    // 1. Apply physics — capture prevVy/prevX/prevY before integration
     // Accelerations are per-second (scaled by dt); velocities are per-tick (applied directly)
     const prevVy = p.vy;
+    const prevX = p.x;
+    const prevY = p.y;
     const windAccel = p.weapon.windImmune ? 0 : wind * WIND_ACCEL_SCALE;
     p.vx += windAccel * dt;
     p.vy += gravity * dt;
@@ -210,6 +232,48 @@ export function stepProjectiles(input: StepInput): StepResult {
     }
 
     if (shielded) continue;
+
+    // 5b. Hull collision — "normal" projectiles explode on direct tank contact.
+    // Only applies to weapons without special impact mechanics.
+    const isNormalImpact =
+      !p.weapon.rollOnImpact &&
+      !p.weapon.plasmaWave &&
+      !p.weapon.tracerMode &&
+      !p.weapon.terrainDeposit &&
+      !p.weapon.burrow &&
+      p.weapon.leapCount === undefined;
+
+    if (isNormalImpact) {
+      // Update arming: snapshot armed state before potentially arming this tick.
+      // The hull check uses the pre-update armed flag so that a shell that JUST left
+      // the owner's hull this tick doesn't immediately re-hit the owner on the same tick.
+      const wasArmed = p.armed ?? false;
+      if (!p.armed) {
+        for (const tank of tanks) {
+          if (tank.sessionId !== p.ownerId) continue;
+          const dx = p.x - tank.x;
+          const dy = p.y - tank.y;
+          if (Math.sqrt(dx * dx + dy * dy) > TANK_HIT_RADIUS + 4) {
+            p.armed = true;
+          }
+          break;
+        }
+      }
+
+      // Swept hull check using point-to-segment distance.
+      // For the owner: only collide if it was ALREADY armed before this tick.
+      let hullHit = false;
+      for (const tank of tanks) {
+        if (tank.sessionId === p.ownerId && !wasArmed) continue;
+        const distSq = pointToSegmentDistSq(tank.x, tank.y, prevX, prevY, p.x, p.y);
+        if (distSq < TANK_HIT_RADIUS * TANK_HIT_RADIUS) {
+          events.push({ kind: "terrain-impact", projectileId: p.id, x: p.x, y: p.y, weapon: p.weapon, ownerId: p.ownerId });
+          hullHit = true;
+          break;
+        }
+      }
+      if (hullHit) continue;
+    }
 
     // 5c. Cave ceiling collision (dual-heightmap; solid for y <= ceiling[x])
     if (input.ceiling) {

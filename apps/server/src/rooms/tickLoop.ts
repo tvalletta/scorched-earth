@@ -49,6 +49,9 @@ export function applyStepEvent(
       carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
     }
 
+    // Per-weapon explosion visual (the client picks the animation by weaponId).
+    broadcast("explosion", { x: Math.round(x), y: Math.round(y), radius: weapon.radius, weaponId: weapon.id });
+
     const aliveBefore = new Set(Array.from(state.tanks.values()).filter(t => t.alive).map(t => t.sessionId));
     const targets = Array.from(state.tanks.values())
       .filter(t => t.alive)

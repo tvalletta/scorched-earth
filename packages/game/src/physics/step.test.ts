@@ -401,3 +401,81 @@ describe("stepProjectiles — wall modes", () => {
     expect(result.survivors[0]!.x).toBeLessThanOrEqual(WIDE - 1);
   });
 });
+
+// Helper — builds a plain no-shield StepTankInfo
+function plainTank(overrides: Partial<StepTankInfo> = {}): StepTankInfo {
+  return {
+    sessionId: "enemy",
+    x: 800, y: 300,
+    shieldHp: 0, shieldMaxHp: 0,
+    shieldRadius: 0,
+    shieldType: "",
+    ...overrides,
+  };
+}
+
+describe("stepProjectiles — hull collision (tank direct hit)", () => {
+  // Terrain flat at y=500, tanks are well above it at y=300.
+  const HULL_TERRAIN = new Int16Array(1600).fill(500);
+  const HULL_BASE = { ...BASE_INPUT, terrain: HULL_TERRAIN };
+
+  it("direct enemy hit: swept projectile emits terrain-impact and is consumed", () => {
+    // Enemy tank at (800, 300). Projectile starts at (800, 280) moving down at 3000px/s.
+    // In one tick (1/60s) it moves ~50px: sweeps from y≈280 to y≈330, passing through the tank.
+    const tank = plainTank({ sessionId: "enemy", x: 800, y: 300 });
+    const p = makeProjectile({
+      id: "shell1",
+      x: 800, y: 280,
+      vx: 0, vy: 3000,
+      ownerId: "attacker",
+      armed: true,
+    });
+    const result = stepProjectiles({ ...HULL_BASE, projectiles: [p], tanks: [tank] });
+    const impact = result.events.find(e => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    if (impact?.kind === "terrain-impact") {
+      expect(impact.ownerId).toBe("attacker");
+      // Impact position should be near the tank
+      expect(Math.abs(impact.x - 800)).toBeLessThan(5);
+    }
+    expect(result.survivors).toHaveLength(0);
+  });
+
+  it("no muzzle detonation: unarmed owner shell spawned on own tank does not self-detonate", () => {
+    // Owner at (800, 500), shell spawned at same spot moving UP — unarmed vs owner.
+    // Shell should survive this tick (fly away), no terrain-impact from hull check.
+    const ownerTank = plainTank({ sessionId: "player1", x: 800, y: 500 });
+    const p = makeProjectile({
+      id: "shell2",
+      x: 800, y: 500,
+      vx: 0, vy: -3000,
+      ownerId: "player1",
+      // armed is absent (falsy) — not yet armed
+    });
+    const result = stepProjectiles({ ...HULL_BASE, projectiles: [p], tanks: [ownerTank] });
+    // No terrain-impact from hull check on this tick
+    const impact = result.events.find(e => e.kind === "terrain-impact");
+    expect(impact).toBeUndefined();
+    // Shell should survive (flying upward away from tank)
+    expect(result.survivors).toHaveLength(1);
+  });
+
+  it("armed shell hits owner: self-damage path — terrain-impact emitted", () => {
+    // Owner at (800, 300), shell armed and sweeping through owner's position.
+    const ownerTank = plainTank({ sessionId: "player1", x: 800, y: 300 });
+    const p = makeProjectile({
+      id: "shell3",
+      x: 800, y: 280,
+      vx: 0, vy: 3000,
+      ownerId: "player1",
+      armed: true,
+    });
+    const result = stepProjectiles({ ...HULL_BASE, projectiles: [p], tanks: [ownerTank] });
+    const impact = result.events.find(e => e.kind === "terrain-impact");
+    expect(impact).toBeDefined();
+    if (impact?.kind === "terrain-impact") {
+      expect(impact.ownerId).toBe("player1");
+    }
+    expect(result.survivors).toHaveLength(0);
+  });
+});
