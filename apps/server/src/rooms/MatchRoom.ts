@@ -52,6 +52,8 @@ export class MatchRoom extends Room<MatchState> {
   private liveProjectiles: LiveProjectile[] = [];
   private firingSessionId = "";
   private tickInterval: ReturnType<typeof this.clock.setInterval> | null = null;
+  private firingWasTracer = false;
+  private lastFireWasTimeout = false;
 
   onCreate(options: { code?: string }): void {
     const state = new MatchState();
@@ -144,6 +146,7 @@ export class MatchRoom extends Room<MatchState> {
       if (this.observers.has(client.sessionId)) return; // observers cannot fire
       this.recorder.captureIntent(client.sessionId, "fire", msg);
       const wasPlaying = this.state.phase === "playing";
+      this.lastFireWasTimeout = false;
       handleFire(this.resolveCtx(), client.sessionId, msg.angle, msg.power);
       if (wasPlaying && this.state.phase === "resolving" && this.timeoutHandle) {
         this.timeoutHandle.clear();
@@ -332,6 +335,7 @@ export class MatchRoom extends Room<MatchState> {
   private startTickLoop(projectiles: LiveProjectile[], firingSessionId: string): void {
     this.liveProjectiles = projectiles;
     this.firingSessionId = firingSessionId;
+    this.firingWasTracer = projectiles.some(p => p.weapon.tracerMode);
     this.state.resolvingTick = 0;
     this.tickInterval = this.clock.setInterval(() => this.tickLoop(), 1000 / 60);
   }
@@ -382,7 +386,20 @@ export class MatchRoom extends Room<MatchState> {
     if (this.liveProjectiles.length === 0) {
       if (this.tickInterval) { this.tickInterval.clear(); this.tickInterval = null; }
       applyFallDamage(ctx);
-      commitTurnEnd(ctx);
+
+      // Tracer keep-turn: if a manual (non-timeout) tracer just landed, keep the same
+      // player's turn instead of advancing. Safety: if <= 1 player alive, always commit
+      // normally so round-end is not bypassed.
+      const alive = Array.from(this.state.tanks.values()).filter(t => t.alive);
+      const keepTurn = this.firingWasTracer && !this.lastFireWasTimeout && alive.length > 1;
+      if (keepTurn) {
+        this.state.phase = "playing";
+        this.state.turnDeadlineMs = Date.now() + this.state.turnTimerMs;
+        // Re-arm (same player, no tick increment, no player advance)
+        ctx.onTurnReady?.();
+      } else {
+        commitTurnEnd(ctx);
+      }
     }
   }
 
@@ -414,6 +431,7 @@ export class MatchRoom extends Room<MatchState> {
       const tank = this.state.tanks.get(currentId);
       if (!tank || !tank.alive) return;
       this.recorder.captureIntent(currentId, "fire", { angle: tank.angle, power: tank.power });
+      this.lastFireWasTimeout = true;
       handleFire(this.resolveCtx(), currentId, tank.angle, tank.power);
     }, this.state.turnTimerMs);
 
@@ -486,6 +504,7 @@ export class MatchRoom extends Room<MatchState> {
       }
 
       this.recorder.captureIntent(slot.sessionId, "fire", { angle: intent.angle, power: intent.power });
+      this.lastFireWasTimeout = false;
       handleFire(this.resolveCtx(), slot.sessionId, intent.angle, intent.power);
     }, profile.thinkDelayMs);
   }
