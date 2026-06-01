@@ -200,7 +200,10 @@ export class TerrainRenderer extends Container {
     for (let i = 0; i < this.seed.length; i++) s = (Math.imul(31, s) + this.seed.charCodeAt(i)) >>> 0;
     const phase = (s % 1000) / 1000 * Math.PI * 2;
 
-    const MIN_THICKNESS = 170;
+    // Small safety floor so the underside never poke through the surface in deep
+    // valleys; kept low so the convex belly curve (deepest in the middle, thin at
+    // the edges) shapes the silhouette rather than a uniform-thickness slab.
+    const MIN_THICKNESS = 60;
     void phase;
 
     // Organically-generated underside (octave noise + plunging edges), guarded
