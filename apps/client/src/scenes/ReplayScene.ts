@@ -1,7 +1,7 @@
 import { Container } from "pixi.js";
 import { TerrainRenderer } from "../render/Terrain.js";
 import { createTankView } from "../render/Tank.js";
-import { SkyRenderer } from "../render/Sky.js";
+import { SkyRenderer, timeOfDayFromSeed } from "../render/Sky.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { TerrainType, TankColor, TankHat } from "@se/shared";
 
@@ -80,8 +80,6 @@ export class ReplayScene {
     this.world.removeChildren();
     this.tankViews.clear();
 
-    this.world.addChild(new SkyRenderer());
-
     const snap = round.snapshot as {
       terrainSeed: string;
       terrainType: string;
@@ -90,6 +88,14 @@ export class ReplayScene {
       wind: number;
       tanks: Record<string, TankSnapshot>;
     };
+
+    // Sky behind everything (index 0); terrain at index 1. SkyRenderer now
+    // requires (timeOfDay, viewW, viewH) — derive time-of-day from the seed,
+    // matching MatchScene.
+    this.world.addChildAt(
+      new SkyRenderer(timeOfDayFromSeed(snap.terrainSeed), window.innerWidth, window.innerHeight),
+      0,
+    );
 
     const t = new TerrainRenderer(snap.terrainSeed, snap.terrainType as TerrainType);
     if (snap.hasCeiling && snap.ceilingSeed) t.setCeiling(snap.ceilingSeed);
