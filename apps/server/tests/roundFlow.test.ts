@@ -50,6 +50,24 @@ describe("buy intent", () => {
     expect(tank.cash).toBe(10_000); // unchanged
     await a.leave(); await b.leave();
   });
+
+  it("a DEAD player can buy during shopping (they respawn next round)", async () => {
+    const { a, b } = await twoPlayerMatch("RND011");
+    const room = colyseus.getRoomById(a.roomId) as any;
+    // Simulate the post-round shopping state with this player eliminated last round.
+    room.state.phase = "shopping";
+    const serverTank = room.state.tanks.get(a.sessionId);
+    serverTank.alive = false;
+    serverTank.cash = 10_000;
+    await new Promise((r) => setTimeout(r, 30));
+
+    a.send("buy", { weaponId: "missile" }); // price 2000, packSize 5
+    await new Promise((r) => setTimeout(r, 80));
+
+    expect(serverTank.cash).toBe(8_000);
+    expect(serverTank.inventory.get("missile")).toBe(5);
+    await a.leave(); await b.leave();
+  });
 });
 
 describe("startMatch sets round=1 and cash", () => {

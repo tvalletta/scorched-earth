@@ -225,7 +225,10 @@ export class MatchRoom extends Room<MatchState> {
     this.onMessage("buy", (client, msg: { weaponId?: string }) => {
       if (this.state.phase !== "shopping") return;
       const tank = this.state.tanks.get(client.sessionId);
-      if (!tank || !tank.alive) return;
+      // Note: do NOT gate on tank.alive — a player eliminated last round is still
+      // shopping for the loadout they respawn with next round. (Observers have no
+      // tank, so the `!tank` guard still excludes them.)
+      if (!tank) return;
 
       const weaponId = String(msg?.weaponId ?? "");
 
