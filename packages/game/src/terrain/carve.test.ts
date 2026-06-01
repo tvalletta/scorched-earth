@@ -60,9 +60,8 @@ describe("carveInPlace", () => {
     }
   });
 
-  it("carves a near-vertical wall when the explosion is at the wall face", () => {
-    // Build a steep wall: left plateau at y=300, right valley at y=500.
-    // Columns 40-59 transition steeply (10px drop per column).
+  it("carves a near-vertical wall — center carves, cliff tops above blast are capped", () => {
+    // Steep wall: left plateau at y=300, right valley at y=500.
     const t = new Int16Array(100);
     for (let i = 0; i < 100; i++) {
       if (i < 40) t[i] = 300;
@@ -70,17 +69,20 @@ describe("carveInPlace", () => {
       else t[i] = 300 + (i - 40) * 10; // 300..500
     }
 
-    // Explosion at the wall face (x=50, y=500) radius=30.
-    // Without the fix, columns left of 50 (high terrain) were skipped.
+    // Explosion at (x=50, y=500) radius=30. Surface at col 50 is 400.
     carveInPlace(t, { x: 50, y: 500, radius: 30, tick: 0 });
 
-    // The center column and right side should definitely carve.
-    expect(t[50]).toBeGreaterThan(500);
+    // Center column: surface was 400, blast center 100 units below (> 2r=60),
+    // so capped to 400+30=430. It DID carve — just not down to the raw circleBottom.
+    expect(t[50]).toBeGreaterThan(400);
 
-    // Left-side wall columns within the explosion radius must also carve.
-    // Column 40 (terrain=300) is 10px inside the radius (distance=10 < 30).
+    // Left-side cliff columns also carve (capped similarly).
     expect(t[40]).toBeGreaterThan(300);
-    expect(t[35]).toBeGreaterThan(300); // dx=15, dy=sqrt(900-225)≈26, bottom≈526
+    expect(t[35]).toBeGreaterThan(300);
+
+    // Cliff tops far above the blast are capped to at most 1 radius below their
+    // original surface — they are not catastrophically removed.
+    expect(t[40]).toBeLessThanOrEqual(300 + 30 + 1); // capped near currentSurface + r
   });
 
   it("is idempotent on the floor", () => {

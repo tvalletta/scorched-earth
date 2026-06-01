@@ -96,7 +96,10 @@ export class HudBar {
       // mousedown and click, so clicks never registered.
       this.localInventory = new Map(myTank.inventory.entries());
       const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',') + '|' + (myTank.shieldId ?? '') + ':' + (myTank.shieldHp ?? 0);
-      if (gridKey !== this.lastGridKey) this.renderGrid();
+      if (gridKey !== this.lastGridKey) {
+        this.lastGridKey = gridKey;  // update before render so stable state never re-renders
+        this.renderGrid();
+      }
     }
   }
 
@@ -212,7 +215,7 @@ export class HudBar {
       if (now - this.lastWheelMs < 150) return;
       this.lastWheelMs = now;
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (delta !== 0) this.scrollWeapon(delta > 0 ? 1 : -1);
+      if (delta !== 0) this.scrollWeapon(delta > 0 ? -1 : 1);
     }, { passive: false });
 
     const fireBtn = this.el.querySelector<HTMLButtonElement>('#hud-fire')!;
@@ -399,8 +402,6 @@ export class HudBar {
       }
     }
 
-    const gridKey = this.activeCategory + '|' + Array.from(this.localInventory.entries()).map(([k,v]) => `${k}:${v}`).join(',');
-    this.lastGridKey = gridKey;
   }
 
   private appendWeaponChip(grid: HTMLDivElement, weaponId: string): void {

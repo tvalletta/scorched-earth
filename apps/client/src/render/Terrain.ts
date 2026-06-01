@@ -174,22 +174,6 @@ export class TerrainRenderer extends Container {
     g.closePath();
     g.fill({ color: 0x1c1208, alpha: 0.6 });
 
-    // Stalactites hanging down from the ceiling edge.
-    let s = 0;
-    for (let i = 0; i < this.seed.length; i++) s = (Math.imul(31, s) + this.seed.charCodeAt(i)) >>> 0;
-    const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 0x100000000; };
-    for (let i = 0; i < 14; i++) {
-      const sx = Math.floor((0.08 + rng() * 0.84) * W);
-      const cy = ceil[sx]!;
-      const len = 30 + rng() * 90;
-      const wHalf = 8 + rng() * 12;
-      g.moveTo(sx - wHalf, cy - 30);
-      g.lineTo(sx + wHalf, cy - 30);
-      g.lineTo(sx, cy + len);
-      g.closePath();
-      g.fill(0x1c1208);
-    }
-
     // Violet rim (absorb accent) along the ceiling silhouette.
     g.moveTo(0, ceil[0]!);
     for (let x = 1; x < W; x += 4) g.lineTo(x, ceil[x]!);
@@ -241,19 +225,6 @@ export class TerrainRenderer extends Container {
     g.closePath();
     g.fill({ color: 0x1c1208, alpha: 0.6 });
 
-    // Stalactites hanging from the deepest (central) region.
-    const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 0x100000000; };
-    for (let i = 0; i < 9; i++) {
-      const sx = Math.floor((0.12 + rng() * 0.76) * W);
-      const by = bottom[sx]!;
-      const len = 55 + rng() * 120;
-      const wHalf = 10 + rng() * 14;
-      g.moveTo(sx - wHalf, by - 40);
-      g.lineTo(sx + wHalf, by - 40);
-      g.lineTo(sx, by + len);
-      g.closePath();
-      g.fill(0x1c1208);
-    }
 
     // Rim light along the underside silhouette.
     g.moveTo(0, bottom[0]!);
