@@ -290,13 +290,20 @@ export function generateUnderside(seed: string, width: number, avgSurface: numbe
   const o2 = buildOctave(seed + "-u2", 90, width);
   const o3 = buildOctave(seed + "-u3", 40, width);
   const out = new Int16Array(width);
-  const baseDepth = 300;
-  const amp = 120;
+  const edgeDepth = 90;    // thin minimum thickness at the left/right tips
+  const bellyDepth = 460;  // extra depth at the centre — the thick "belly"
+  const amp = 90;
   for (let x = 0; x < width; x++) {
     const t = x / (width - 1);
-    const noise = (o1[x] as number) * 0.6 + (o2[x] as number) * 0.3 + (o3[x] as number) * 0.1;
-    const edge = Math.pow(Math.abs(t - 0.5) * 2, 2.2) * 260; // plunge toward both edges
-    out[x] = Math.round(avgSurface + baseDepth + noise * amp + edge);
+    // Convex belly: 1 at the centre, tapering to 0 at both edges, so the island
+    // hangs deepest in the middle and rounds off to thin tips (a floating-island
+    // teardrop) instead of plunging at the edges.
+    const belly = 1 - Math.pow(Math.abs(t - 0.5) * 2, 1.7);
+    // Fade the organic noise toward the edges so the thin tips stay clean.
+    const noise =
+      ((o1[x] as number) * 0.6 + (o2[x] as number) * 0.3 + (o3[x] as number) * 0.1) *
+      amp * (0.35 + 0.65 * belly);
+    out[x] = Math.round(avgSurface + edgeDepth + belly * bellyDepth + noise);
   }
   return out;
 }

@@ -116,6 +116,8 @@ export interface LiveProjectile {
   isBurrowing?: boolean; // Sandhog/Tunneler — currently boring downward
   // Hull collision arming: true once the shell has left its owner's hull
   armed?: boolean;
+  // Tracer: accumulated flight path for broadcast
+  tracerPath?: TrajectorySample[];
 }
 
 export interface StepTankInfo {

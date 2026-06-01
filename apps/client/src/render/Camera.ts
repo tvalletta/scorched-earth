@@ -4,10 +4,14 @@ export interface TankPosition { x: number; y: number; }
 interface Viewport { width: number; height: number; }
 
 // Visible world band used for camera bounds (NOT the taller physics bounds).
-export const WORLD_LEFT = 0;
-export const WORLD_RIGHT = 1600;     // TERRAIN_WIDTH
-export const WORLD_TOP = -150;       // headroom above peaks for high shots
-export const WORLD_BOTTOM = 1020;    // ~TERRAIN_HEIGHT(900) + 120 underside
+// World band = the island (0..1600 × surface..underside) PLUS a generous "sky"
+// margin on every side, so the camera can zoom out to show the island floating
+// in open air rather than cropping it at the edges. The margin sets both the
+// minimum zoom (minScaleFor) and the pan bounds (clampPan).
+export const WORLD_LEFT = -300;      // sky to the left of the island
+export const WORLD_RIGHT = 1900;     // TERRAIN_WIDTH(1600) + sky to the right
+export const WORLD_TOP = -300;       // sky above the peaks (high shots + headroom)
+export const WORLD_BOTTOM = 1300;    // below the floating-island underside + air
 export const MAX_SCALE = 2.0;
 export const ZOOM_SENSITIVITY = 0.0008; // wheel feel; tune in-app
 
@@ -81,6 +85,7 @@ export class Camera {
   private dragStartMouseY = 0;
   userOverride = false;
   private trackingSuspended = false;
+  private readonly inputAbort = new AbortController();
 
   constructor(private world: Container, private app: Application) {
     this.targetX = world.position.x;
@@ -168,6 +173,7 @@ export class Camera {
 
   private attachInputListeners(): void {
     const canvas = this.app.canvas;
+    const sig = this.inputAbort.signal; // remove all listeners at once on destroy()
 
     canvas.addEventListener('wheel', (e: WheelEvent) => {
       e.preventDefault();
@@ -184,7 +190,7 @@ export class Camera {
       this.targetScale = newScale;
       this.userOverride = true;
       this.clampToBounds();
-    }, { passive: false });
+    }, { passive: false, signal: sig });
 
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -196,7 +202,7 @@ export class Camera {
       this.dragStartMouseY = e.clientY;
       this.dragStartWorldX = this.world.position.x;
       this.dragStartWorldY = this.world.position.y;
-    });
+    }, { signal: sig });
     canvas.addEventListener('pointermove', (e: PointerEvent) => {
       if (!this.isDragging) return;
       const dx = e.clientX - this.dragStartMouseX;
@@ -206,20 +212,22 @@ export class Camera {
       this.userOverride = true;
       this.clampToBounds();
       this.world.position.set(this.targetX, this.targetY);
-    });
+    }, { signal: sig });
     const endDrag = () => { this.isDragging = false; };
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
-    window.addEventListener('blur', endDrag);
+    canvas.addEventListener('pointerup', endDrag, { signal: sig });
+    canvas.addEventListener('pointercancel', endDrag, { signal: sig });
+    window.addEventListener('blur', endDrag, { signal: sig });
 
-    canvas.addEventListener('dblclick', () => this.resetView());
+    canvas.addEventListener('dblclick', () => this.resetView(), { signal: sig });
 
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'r' || e.key === 'R') this.resetView();
-    });
+    }, { signal: sig });
   }
 
   destroy(): void {
-    // Input listeners on window are long-lived per match; acceptable cost
+    // Remove every input listener registered with this signal (wheel/pointer/
+    // keydown/blur) so a torn-down scene's camera can't keep handling input.
+    this.inputAbort.abort();
   }
 }

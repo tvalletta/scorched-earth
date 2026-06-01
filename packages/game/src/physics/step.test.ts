@@ -3,6 +3,7 @@ import { stepProjectiles, initialVelocityFromAnglePower } from "./step";
 import type { LiveProjectile, StepTankInfo } from "../types";
 import { BABY_MISSILE } from "../weapons/baby-missile";
 import { MIRV } from "../weapons/mirv";
+import { TRACER } from "../weapons/group2-physics";
 
 const FLAT_TERRAIN = new Int16Array(1600).fill(500);
 const NO_TANKS: StepTankInfo[] = [];
@@ -585,6 +586,54 @@ describe("shield physics — May-26 model", () => {
     const r = stepProjectiles(shieldInput({ projectiles: [p], tanks: [t] }));
     // MUST emit shield-deflect — projectile is incoming
     expect(r.events.find(e => e.kind === "shield-deflect")).toBeTruthy();
+  });
+
+  it("tracer-complete: emits full multi-point flight path (fix #3 — Part A)", () => {
+    // Set up a tracer with an arc: launch upward-right, let it fall onto flat terrain at y=500.
+    // We need enough ticks for the projectile to complete its arc, so we step in a loop.
+    const terrain = new Int16Array(1600).fill(500); // flat ground at y=500
+    const tracer = makeProjectile({
+      weapon: TRACER,
+      x: 400, y: 100,
+      vx: 200, vy: -100, // moving right and slightly upward → arcs and lands
+    });
+    const input = {
+      ...BASE_INPUT,
+      terrain,
+      projectiles: [tracer],
+      tanks: NO_TANKS,
+      gravity: 250,
+      dt: 1 / 60,
+      wallMode: "none" as const,
+    };
+
+    let projectiles = [tracer];
+    let tracerCompleteEvent: { kind: "tracer-complete"; path: Array<{ x: number; y: number; t: number }> } | undefined;
+    const MAX_TICKS = 500;
+    for (let i = 0; i < MAX_TICKS; i++) {
+      const result = stepProjectiles({ ...input, projectiles });
+      const ev = result.events.find(e => e.kind === "tracer-complete");
+      if (ev && ev.kind === "tracer-complete") {
+        tracerCompleteEvent = ev as typeof tracerCompleteEvent;
+        break;
+      }
+      projectiles = [...result.survivors, ...result.spawned];
+      if (projectiles.length === 0) break;
+    }
+
+    expect(tracerCompleteEvent).toBeDefined();
+    const path = tracerCompleteEvent!.path;
+    // Must have accumulated many points — not just the single impact point
+    expect(path.length).toBeGreaterThan(1);
+    // First point should be near the launch position (not at impact)
+    expect(path[0]!.x).toBeCloseTo(400 + 200 / 60, 0); // ~403 after first physics step
+    expect(path[0]!.y).toBeLessThan(300); // well above terrain (y=500)
+    // Last point should be near the ground (impact)
+    expect(path[path.length - 1]!.y).toBeGreaterThanOrEqual(490); // near terrain y=500
+    // t values should be ascending indices (0, 1, 2, ...)
+    for (let i = 0; i < path.length; i++) {
+      expect(path[i]!.t).toBe(i);
+    }
   });
 
   it("deflect-guard: deflected projectile can hit a second non-deflecting tank (survives deflect, not consumed by D)", () => {

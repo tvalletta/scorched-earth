@@ -116,6 +116,12 @@ export function stepProjectiles(input: StepInput): StepResult {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
+    // 1b. Tracer path accumulation — record each integrated position
+    if (p.weapon.tracerMode) {
+      p.tracerPath ??= [];
+      p.tracerPath.push({ x: p.x, y: p.y, t: p.tracerPath.length });
+    }
+
     // 2 & 3. Patriot homing + intercept
     if (p.isPatriot) {
       const target = projectiles.find(t => t.id === p.targetId && !t.isPatriot);
@@ -328,10 +334,10 @@ export function stepProjectiles(input: StepInput): StepResult {
         continue;
       }
 
-      // Tracer: emit path complete, no carve, no damage
+      // Tracer: emit path complete with full accumulated path, no carve, no damage
       if (p.weapon.tracerMode) {
         events.push({ kind: "tracer-complete", projectileId: p.id,
-                      path: [{ x: p.x, y: p.y, t: 0 }], ownerId: p.ownerId });
+                      path: p.tracerPath ?? [{ x: p.x, y: p.y, t: 0 }], ownerId: p.ownerId });
         continue;
       }
 

@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, Container, Graphics, Ticker } from "pixi.js";
 import type { Room } from "colyseus.js";
 import { getStateCallbacks } from "colyseus.js";
 import { MatchState, TERRAIN_WIDTH, TERRAIN_HEIGHT, PLAY_CEILING_Y, PLAY_FLOOR_MARGIN } from "@se/shared";
@@ -41,6 +41,7 @@ export class MatchScene {
   private patriotRenderer!: PatriotRenderer;
   private cage!: CageRenderer;
   private trajectoryOverlay!: TrajectoryOverlay;
+  private tracerLayer!: Graphics;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
   private hudBar: HudBar | null = null;
   private turnHud: TurnHud | null = null;
@@ -51,6 +52,9 @@ export class MatchScene {
   private sky: SkyRenderer | null = null;
   private lastRoundSummaryPayload: unknown = null;
   private lastPhase: MatchPhase = "lobby";
+  // Stored so dispose() can detach them (e.g. when switching to the replay viewer).
+  private onResize: () => void = () => {};
+  private onTick: (ticker: Ticker) => void = () => {};
 
   constructor(public room: Room<MatchState>, public code: string) {
     const app = window.pixiApp;
@@ -61,10 +65,11 @@ export class MatchScene {
     this.app.stage.addChild(this.world);
 
     this.camera = new Camera(this.world, this.app);
-    window.addEventListener('resize', () => {
+    this.onResize = () => {
       this.sky?.resize(window.innerWidth, window.innerHeight);
       this.fitToLivingTanks();
-    });
+    };
+    window.addEventListener('resize', this.onResize);
 
     window.__room = room;
     window.__sessionId = room.sessionId;
@@ -181,6 +186,28 @@ export class MatchScene {
       this.world.addChild(g);
       setTimeout(() => { g.destroy(); }, 150);
     });
+    room.onMessage("tracer-path", (msg: { path: { x: number; y: number; t: number }[]; ownerId: string }) => {
+      const { path, ownerId } = msg;
+      if (path.length < 2) return;
+      // Draw persistent polyline — bright cyan for own shots, yellow for others
+      const isOwn = ownerId === this.room.sessionId;
+      const lineColor = isOwn ? 0x00ffff : 0xffff00;
+      const dotColor  = isOwn ? 0x00dddd : 0xdddd00;
+      // Draw the flight path line
+      this.tracerLayer.moveTo(path[0]!.x, path[0]!.y);
+      for (let i = 1; i < path.length; i++) {
+        this.tracerLayer.lineTo(path[i]!.x, path[i]!.y);
+      }
+      this.tracerLayer.stroke({ color: lineColor, width: 1.5, alpha: 0.7 });
+      // Draw small dots at regular intervals for the dashed effect
+      const step = Math.max(1, Math.floor(path.length / 20));
+      for (let i = 0; i < path.length; i += step) {
+        this.tracerLayer.circle(path[i]!.x, path[i]!.y, 2).fill({ color: dotColor, alpha: 0.8 });
+      }
+      // Mark the impact point
+      const last = path[path.length - 1]!;
+      this.tracerLayer.circle(last.x, last.y, 4).fill({ color: 0xff4444, alpha: 0.9 });
+    });
     room.onMessage("round-summary", (msg) => {
       this.lastRoundSummaryPayload = msg;
     });
@@ -188,7 +215,7 @@ export class MatchScene {
       this.showMatchEnd(msg);
     });
 
-    this.app.ticker.add((ticker) => {
+    this.onTick = (ticker) => {
       const dt = ticker.deltaMS / 1000;
       this.camera?.update(dt);
       this.sky?.update(dt, this.camera?.worldX ?? 0);
@@ -204,7 +231,23 @@ export class MatchScene {
       // TurnHud self-manages show/hide by phase; shown to players AND spectators
       // (it's read-only roster/turn info — only the interactive HudBar is hidden for spectators).
       this.turnHud?.update(room.state);
-    });
+    };
+    this.app.ticker.add(this.onTick);
+  }
+
+  /** Tear down the live match scene: detach listeners, destroy display objects,
+   *  and leave the room. Used when switching to the replay viewer so the live
+   *  scene (and its HUD overlays) don't bleed through. */
+  dispose(): void {
+    this.app.ticker.remove(this.onTick);
+    window.removeEventListener('resize', this.onResize);
+    this.camera?.destroy();
+    this.hudBar?.destroy();
+    this.turnHud?.destroy();
+    if (this.sky) { this.sky.removeFromParent(); this.sky.destroy(); this.sky = null; }
+    this.world.removeFromParent();
+    this.world.destroy({ children: true });
+    try { this.room.leave(); } catch { /* already disconnected */ }
   }
 
   private fitToLivingTanks(): void {
@@ -242,6 +285,10 @@ export class MatchScene {
     this.projectileRenderer = new ProjectileRenderer(this.world);
     this.patriotRenderer = new PatriotRenderer(this.world);
 
+    // Tracer trail layer — persists across turns; cleared on new-round terrain rebuild
+    this.tracerLayer = new Graphics();
+    this.world.addChild(this.tracerLayer);
+
     this.trajectoryOverlay = new TrajectoryOverlay();
     this.world.addChild(this.trajectoryOverlay);
 
@@ -250,7 +297,11 @@ export class MatchScene {
     });
 
     const $ = getStateCallbacks(this.room);
-    $(state).listen("terrainSeed", (seed) => buildTerrain(seed), true);
+    $(state).listen("terrainSeed", (seed) => {
+      buildTerrain(seed);
+      // Clear stale tracer trails whenever a new round's terrain is generated
+      this.tracerLayer.clear();
+    }, true);
     $(state).listen("terrainType", (type) => {
       buildTerrain(state.terrainSeed);
       void type;
@@ -439,7 +490,10 @@ export class MatchScene {
           import("./ReplayScene.js").then(({ ReplayScene }) => {
             fetch(`${httpUrl}/replays/${this.room.roomId}`)
               .then((r) => r.json())
-              .then((replay) => new ReplayScene(replay))
+              .then((replay) => {
+                this.dispose(); // tear down the live match scene before the replay viewer
+                new ReplayScene(replay);
+              })
               .catch(console.error);
           });
         },

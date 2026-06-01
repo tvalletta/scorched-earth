@@ -21,14 +21,15 @@ describe("generateCeiling", () => {
 });
 
 describe("generateUnderside", () => {
-  it("returns an organic bottom below the surface that plunges at the edges", () => {
+  it("returns a convex floating-island underside: thickest in the middle, tapering to thin edges", () => {
     const u = generateUnderside("seed-1", W, 500); // avgSurface = 500
     expect(u.length).toBe(W);
-    for (let x = 0; x < W; x++) expect(u[x]!).toBeGreaterThan(500); // below the surface
-    // edges plunge: they are not shallower than the middle's shallowest point
+    for (let x = 0; x < W; x++) expect(u[x]!).toBeGreaterThan(500); // always below the surface
+    // Convex belly: the middle hangs deeper (larger y) than the edges.
     const midSlice = Array.from(u.slice(Math.floor(W * 0.4), Math.floor(W * 0.6)));
-    const midMin = Math.min(...midSlice);
-    expect(Math.max(u[5]!, u[W - 6]!)).toBeGreaterThan(midMin - 1);
+    const midDeepest = Math.max(...midSlice);
+    const edgeDeepest = Math.max(u[5]!, u[W - 6]!);
+    expect(midDeepest).toBeGreaterThan(edgeDeepest + 150); // belly clearly deeper than edges
   });
 });
 
