@@ -1,7 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { TerrainType } from "@se/shared";
-import { generateTerrain, generateUnderside, generateCeiling, carveInPlace, carveCeilingInPlace } from "@se/game";
+import { generateTerrain, generateUnderside, generateCeiling, carveInPlace, carveCeilingInPlace, settleInPlace } from "@se/game";
 import type { DepositShape } from "@se/game";
 import { DirtParticles } from "./DirtParticles";
 
@@ -47,7 +47,7 @@ export class TerrainRenderer extends Container {
     const xMax = Math.min(TERRAIN_WIDTH - 1, Math.ceil(cx + radius));
     const map = op.layer === "ceiling" && this.ceilingMap ? this.ceilingMap : this.heightmap;
 
-    // Snapshot pre-carve heights for columns in the blast zone.
+    // Snapshot pre-carve heights for blast zone.
     const before = new Int16Array(xMax - xMin + 1);
     for (let i = xMin; i <= xMax; i++) before[i - xMin] = map[i]!;
 
@@ -56,14 +56,42 @@ export class TerrainRenderer extends Container {
     } else {
       carveInPlace(this.heightmap, op, { terrainHeight: TERRAIN_HEIGHT });
     }
+
+    // Apply gravity settling on floor carves only.
+    // settleBefore captures terrain[lo..hi] AFTER carve but BEFORE settling.
+    let settleBefore: Int16Array | null = null;
+    let lo = xMin;
+    let hi = xMax;
+    if (!(op.layer === "ceiling" && this.ceilingMap)) {
+      lo = Math.max(0, xMin - 5);
+      hi = Math.min(TERRAIN_WIDTH - 1, xMax + 5);
+      settleBefore = settleInPlace(this.heightmap, xMin, xMax);
+    }
+
     this.redraw();
 
-    // Build the changed-column list for the dirt-particle burst (debris).
+    // Build changed-column list (carve + settle) for DirtParticles.
     const changed: Array<{ x: number; oldY: number; newY: number }> = [];
+
+    // Blast zone: compare against pre-carve snapshot
     for (let i = xMin; i <= xMax; i++) {
       const oldY = before[i - xMin]!;
       const newY = map[i]!;
       if (newY !== oldY) changed.push({ x: i, oldY, newY: Math.max(oldY, newY) });
+    }
+
+    // Outer settling columns (outside blast zone)
+    if (settleBefore) {
+      for (let i = lo; i < xMin; i++) {
+        const oldY = settleBefore[i - lo]!;
+        const newY = this.heightmap[i]!;
+        if (newY !== oldY) changed.push({ x: i, oldY, newY });
+      }
+      for (let i = xMax + 1; i <= hi; i++) {
+        const oldY = settleBefore[i - lo]!;
+        const newY = this.heightmap[i]!;
+        if (newY !== oldY) changed.push({ x: i, oldY, newY });
+      }
     }
 
     return changed.length > 0 ? new DirtParticles(changed) : null;
