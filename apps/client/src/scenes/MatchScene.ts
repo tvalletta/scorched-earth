@@ -12,6 +12,7 @@ import { createTankView } from "../render/Tank";
 import { ProjectileRenderer } from "../render/Projectile";
 import { PatriotRenderer } from "../render/Patriot";
 import { Explosion, explosionStyleFor } from "../render/Explosion";
+import { BurnFlames } from '../render/BurnFlames';
 import { HudBar } from '../hud/HudBar';
 import { TurnHud } from '../hud/TurnHud';
 import { RoundSummaryScene, type RoundSummaryPayload } from "./RoundSummaryScene";
@@ -43,6 +44,7 @@ export class MatchScene {
   private trajectoryOverlay!: TrajectoryOverlay;
   private tracerLayer!: Graphics;
   private activeZones: Array<{ kind: "burn-zone" | "smoke-zone"; x: number; width: number }> = [];
+  private activeBurnFlames: Map<string, BurnFlames> = new Map();
   private hudBar: HudBar | null = null;
   private turnHud: TurnHud | null = null;
   private roundSummaryScene: RoundSummaryScene | null = null;
@@ -112,6 +114,13 @@ export class MatchScene {
       this.activeZones.push({ kind: "burn-zone", x: msg.x, width: msg.width });
       this.terrain?.updateZones(this.activeZones);
       this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+      const key = `${msg.x}:${msg.width}`;
+      if (!this.activeBurnFlames.has(key)) {
+        const flames = new BurnFlames(msg.x, msg.width, (x) => this.terrain?.heightAt(x) ?? 0);
+        this.world.addChild(flames);
+        this.activeBurnFlames.set(key, flames);
+        this.activeAnims.push(flames);
+      }
     });
     room.onMessage("smoke-zone-start", (msg: { x: number; width: number; turnsLeft: number }) => {
       this.activeZones.push({ kind: "smoke-zone", x: msg.x, width: msg.width });
@@ -124,6 +133,18 @@ export class MatchScene {
         .map(e => ({ kind: e.kind as "burn-zone" | "smoke-zone", x: e.x, width: e.width }));
       this.terrain?.updateZones(this.activeZones);
       this.trajectoryOverlay?.setSmokeZones(this.activeZones.filter(z => z.kind === "smoke-zone"));
+      const liveKeys = new Set(
+        this.activeZones.filter(z => z.kind === "burn-zone").map(z => `${z.x}:${z.width}`)
+      );
+      for (const [key, flames] of this.activeBurnFlames) {
+        if (!liveKeys.has(key)) {
+          const idx = this.activeAnims.indexOf(flames);
+          if (idx >= 0) this.activeAnims.splice(idx, 1);
+          flames.removeFromParent();
+          flames.destroy();
+          this.activeBurnFlames.delete(key);
+        }
+      }
     });
     room.onMessage("laser-beam", (msg: { fromX: number; fromY: number; toX: number; toY: number }) => {
       const g = new Graphics();
@@ -403,6 +424,13 @@ export class MatchScene {
       this.activeZones = [];
       this.terrain?.updateZones([]);
       this.trajectoryOverlay?.setSmokeZones([]);
+      for (const [, flames] of this.activeBurnFlames) {
+        const idx = this.activeAnims.indexOf(flames);
+        if (idx >= 0) this.activeAnims.splice(idx, 1);
+        flames.removeFromParent();
+        flames.destroy();
+      }
+      this.activeBurnFlames.clear();
     }
 
     // Show/hide HudBar based on phase. Use explicit 'flex' (not '') so toggling
