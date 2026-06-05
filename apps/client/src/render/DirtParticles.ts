@@ -38,15 +38,18 @@ export class DirtParticles extends Container {
         const color = DIRT_COLORS[Math.floor(Math.random() * DIRT_COLORS.length)]!;
         g.rect(-size / 2, -size / 2, size, size).fill(color);
 
-        // Start anywhere within the carved column band
+        const isDeposit = col.newY < col.oldY; // surface raised = dirt landing
+        const vyMagnitude = 15 + Math.random() * 25;
         g.x = col.x + (Math.random() - 0.5) * 4;
-        g.y = col.oldY + Math.random() * drop * 0.4;
+        g.y = isDeposit
+          ? col.newY - Math.random() * 20        // deposit: start just above new surface
+          : col.oldY + Math.random() * drop * 0.4; // carve: start in excavated band
 
         this.addChild(g);
         this.particles.push({
           g,
           vx: (Math.random() - 0.5) * 40,
-          vy: -15 - Math.random() * 25, // small upward kick from blast
+          vy: isDeposit ? vyMagnitude * 0.5 : -vyMagnitude,
         });
       }
     }
