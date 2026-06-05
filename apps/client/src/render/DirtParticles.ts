@@ -28,9 +28,10 @@ export class DirtParticles extends Container {
     for (let i = 0; i < changedCols.length; i += step) {
       const col = changedCols[i]!;
       const drop = col.newY - col.oldY;
+      const absChange = Math.abs(drop);
 
       // Spawn 1–3 chunks per sampled column based on how much terrain changed.
-      const count = drop > 30 ? 3 : drop > 10 ? 2 : 1;
+      const count = absChange > 30 ? 3 : absChange > 10 ? 2 : 1;
 
       for (let j = 0; j < count; j++) {
         const g = new Graphics();

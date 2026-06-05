@@ -140,8 +140,7 @@ export class MatchScene {
         if (!liveKeys.has(key)) {
           const idx = this.activeAnims.indexOf(flames);
           if (idx >= 0) this.activeAnims.splice(idx, 1);
-          flames.removeFromParent();
-          flames.destroy();
+          flames.destroy({ children: true });
           this.activeBurnFlames.delete(key);
         }
       }
@@ -427,8 +426,7 @@ export class MatchScene {
       for (const [, flames] of this.activeBurnFlames) {
         const idx = this.activeAnims.indexOf(flames);
         if (idx >= 0) this.activeAnims.splice(idx, 1);
-        flames.removeFromParent();
-        flames.destroy();
+        flames.destroy({ children: true });
       }
       this.activeBurnFlames.clear();
     }
