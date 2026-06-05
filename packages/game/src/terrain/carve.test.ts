@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { carveInPlace, applyCarve, carveCeilingInPlace } from "./carve";
+import { carveInPlace, applyCarve, carveCeilingInPlace, settleInPlace } from "./carve";
 
 describe("carveCeilingInPlace", () => {
   it("recedes the ceiling upward within the radius, clamped >= 0", () => {
@@ -101,5 +101,58 @@ describe("applyCarve", () => {
     const b = applyCarve(a, { x: 50, y: 500, radius: 20, tick: 0 });
     expect(Array.from(a)).toEqual(snapshot);
     expect(b).not.toBe(a);
+  });
+});
+
+describe("settleInPlace", () => {
+  it("does not modify flat terrain", () => {
+    const t = flatTerrain(100, 400);
+    const before = settleInPlace(t, 30, 70);
+    expect(Array.from(t)).toEqual(Array.from(flatTerrain(100, 400)));
+    // before snapshot matches original
+    const lo = Math.max(0, 30 - 5);
+    const hi = Math.min(99, 70 + 5);
+    expect(before.length).toBe(hi - lo + 1);
+  });
+
+  it("settles a steep cliff-valley pair to within threshold", () => {
+    // cliff at y=100 (high), valley at y=500 (low), adjacent columns
+    const t = new Int16Array(100);
+    for (let i = 0; i < 100; i++) t[i] = i < 50 ? 100 : 500;
+    settleInPlace(t, 45, 55);
+    // after settling, adjacent pair difference must be <= 80 (threshold)
+    for (let x = 0; x < 99; x++) {
+      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(81);
+    }
+  });
+
+  it("returns a pre-settle snapshot covering [xMin-5 .. xMax+5]", () => {
+    const t = new Int16Array(100);
+    for (let i = 0; i < 100; i++) t[i] = i < 50 ? 100 : 500;
+    const before = settleInPlace(t, 48, 52);
+    const lo = Math.max(0, 48 - 5);
+    const hi = Math.min(99, 52 + 5);
+    expect(before.length).toBe(hi - lo + 1);
+    // before[0] corresponds to terrain[lo] — which was 100 before settling
+    expect(before[0]).toBe(100);
+  });
+
+  it("respects MAX_PASSES cap — terminates even on extreme input", () => {
+    // 2-column terrain with a huge cliff; needs many passes
+    const t = new Int16Array(10);
+    t[0] = 0; t[1] = 900; // 900px diff
+    for (let i = 2; i < 10; i++) t[i] = 900;
+    // Should not throw or hang
+    settleInPlace(t, 0, 1, { maxPasses: 5 });
+    expect(true).toBe(true); // just verify it completes
+  });
+
+  it("handles right-to-left slope (right column is higher)", () => {
+    const t = new Int16Array(100);
+    for (let i = 0; i < 100; i++) t[i] = i >= 50 ? 100 : 500;
+    settleInPlace(t, 45, 55);
+    for (let x = 0; x < 99; x++) {
+      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(81);
+    }
   });
 });

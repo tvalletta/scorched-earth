@@ -7,7 +7,8 @@ export type {
   DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
 } from "./types";
 export { generateTerrain, generateUnderside, generateCeiling } from "./terrain/generate";
-export { carveInPlace, applyCarve, carveCeilingInPlace } from "./terrain/carve";
+export { carveInPlace, applyCarve, carveCeilingInPlace, settleInPlace } from "./terrain/carve";
+export type { CarveOptions, SettleOptions } from "./terrain/carve";
 export {
   BABY_MISSILE, MISSILE, BABY_NUKE, NUKE, FUNKY_BOMB, MIRV,
   DEATHS_HEAD, DEATHS_KNELL, TRIPLE_WARHEAD, PINEAPPLE, FUNKY_NUKE, PLASMA_BALL, PLASMA_BLAST,

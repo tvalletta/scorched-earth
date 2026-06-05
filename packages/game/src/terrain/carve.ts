@@ -93,3 +93,58 @@ export function applyCarve(
   carveInPlace(out, op, options);
   return out;
 }
+
+export interface SettleOptions {
+  slopeThreshold?: number;
+  maxPasses?: number;
+}
+
+/**
+ * Redistributes terrain height after a blast. Scans adjacent column pairs;
+ * when the height difference exceeds slopeThreshold, soil slides from the
+ * higher column to the lower until equilibrium or maxPasses is reached.
+ *
+ * Screen coords: smaller y = higher on screen. "Higher column" = smaller y = cliff.
+ * Sliding: cliff y increases (surface lowers), valley y decreases (surface rises).
+ *
+ * Returns snapshot of terrain[lo..hi] BEFORE settling (for DirtParticles comparison).
+ */
+export function settleInPlace(
+  terrain: Int16Array,
+  xMin: number,
+  xMax: number,
+  options: SettleOptions = {},
+): Int16Array {
+  const SLOPE_THRESHOLD = options.slopeThreshold ?? 80;
+  const MAX_PASSES = options.maxPasses ?? 30;
+
+  const lo = Math.max(0, xMin - 5);
+  const hi = Math.min(terrain.length - 1, xMax + 5);
+
+  const before = terrain.slice(lo, hi + 1);
+
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    let anyChange = false;
+    for (let x = lo; x < hi; x++) {
+      const left = terrain[x] as number;
+      const right = terrain[x + 1] as number;
+      const diff = right - left;
+
+      if (Math.abs(diff) > SLOPE_THRESHOLD) {
+        const slide = Math.floor((Math.abs(diff) - SLOPE_THRESHOLD) / 2);
+        if (slide === 0) continue;
+        if (diff > 0) {
+          terrain[x] = left + slide;
+          terrain[x + 1] = right - slide;
+        } else {
+          terrain[x] = left - slide;
+          terrain[x + 1] = right + slide;
+        }
+        anyChange = true;
+      }
+    }
+    if (!anyChange) break;
+  }
+
+  return before;
+}
