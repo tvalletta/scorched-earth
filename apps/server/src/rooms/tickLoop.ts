@@ -1,7 +1,7 @@
 import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS, REACTIVE_BLAST } from "@se/shared";
 import {
   computeFallDamage, BABY_MISSILE,
-  computeDamage, carveInPlace, carveCeilingInPlace,
+  computeDamage, carveInPlace, carveCeilingInPlace, settleInPlace,
   type LiveProjectile, type StepTankInfo, type StepEvent,
 } from "@se/game";
 import { nextTurnPlayerId } from "./turnController.js";
@@ -48,6 +48,7 @@ export function applyStepEvent(
       carveCeilingInPlace(ctx.ceiling, op);
     } else {
       carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+      settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     }
 
     // Per-weapon explosion visual (the client picks the animation by weaponId).
@@ -82,6 +83,7 @@ export function applyStepEvent(
     state.terrainOps.push(op);
     state.terrainVersion++;
     carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
 
     const targets = Array.from(state.tanks.values()).filter(t => t.alive)
       .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
@@ -99,6 +101,7 @@ export function applyStepEvent(
     state.terrainOps.push(op);
     state.terrainVersion++;
     carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     const targets = Array.from(state.tanks.values()).filter(t => t.alive)
       .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
     const damages = computeDamage({ x, y }, weapon, targets);
@@ -188,6 +191,7 @@ export function applyStepEvent(
     op.x = Math.round(event.x); op.y = Math.round(event.y); op.radius = PATRIOT_CARVE_RADIUS; op.tick = state.tick + 1;
     state.terrainOps.push(op); state.terrainVersion++;
     carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     broadcast("patriot-intercept", { patriotId: event.patriotId, targetId: event.targetId, x: event.x, y: event.y });
     return;
   }
