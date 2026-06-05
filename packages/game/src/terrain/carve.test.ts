@@ -122,7 +122,7 @@ describe("settleInPlace", () => {
     settleInPlace(t, 45, 55);
     // after settling, adjacent pair difference must be <= 80 (threshold)
     for (let x = 0; x < 99; x++) {
-      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(81);
+      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(80);
     }
   });
 
@@ -144,7 +144,11 @@ describe("settleInPlace", () => {
     for (let i = 2; i < 10; i++) t[i] = 900;
     // Should not throw or hang
     settleInPlace(t, 0, 1, { maxPasses: 5 });
-    expect(true).toBe(true); // just verify it completes
+    // values must remain within valid Int16 range after capped settling
+    for (let i = 0; i < t.length; i++) {
+      expect(t[i]).toBeGreaterThanOrEqual(0);
+      expect(t[i]).toBeLessThanOrEqual(32767);
+    }
   });
 
   it("handles right-to-left slope (right column is higher)", () => {
@@ -152,7 +156,7 @@ describe("settleInPlace", () => {
     for (let i = 0; i < 100; i++) t[i] = i >= 50 ? 100 : 500;
     settleInPlace(t, 45, 55);
     for (let x = 0; x < 99; x++) {
-      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(81);
+      expect(Math.abs((t[x] as number) - (t[x + 1] as number))).toBeLessThanOrEqual(80);
     }
   });
 });

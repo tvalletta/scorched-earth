@@ -131,7 +131,7 @@ export function settleInPlace(
       const diff = right - left;
 
       if (Math.abs(diff) > SLOPE_THRESHOLD) {
-        const slide = Math.floor((Math.abs(diff) - SLOPE_THRESHOLD) / 2);
+        const slide = Math.ceil((Math.abs(diff) - SLOPE_THRESHOLD) / 2);
         if (slide === 0) continue;
         if (diff > 0) {
           terrain[x] = left + slide;
