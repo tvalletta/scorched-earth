@@ -2,6 +2,7 @@ import { Container, Graphics } from "pixi.js";
 import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
 import type { TerrainType } from "@se/shared";
 import { generateTerrain, generateUnderside, generateCeiling, carveInPlace, carveCeilingInPlace } from "@se/game";
+import type { DepositShape } from "@se/game";
 import { DirtParticles } from "./DirtParticles";
 
 export class TerrainRenderer extends Container {
@@ -63,6 +64,36 @@ export class TerrainRenderer extends Container {
       const oldY = before[i - xMin]!;
       const newY = map[i]!;
       if (newY !== oldY) changed.push({ x: i, oldY, newY: Math.max(oldY, newY) });
+    }
+
+    return changed.length > 0 ? new DirtParticles(changed) : null;
+  }
+
+  deposit(centerX: number, shape: DepositShape): DirtParticles | null {
+    const half = shape.halfWidth;
+    const xMin = Math.max(0, Math.round(centerX - half));
+    const xMax = Math.min(TERRAIN_WIDTH - 1, Math.round(centerX + half));
+
+    // Snapshot pre-deposit heights
+    const before = new Int16Array(xMax - xMin + 1);
+    for (let i = xMin; i <= xMax; i++) before[i - xMin] = this.heightmap[i]!;
+
+    // Raise terrain (mirrors tickLoop: lower y = higher on screen)
+    for (let col = xMin; col <= xMax; col++) {
+      const fraction = shape.spray
+        ? Math.max(0, 1 - Math.abs(col - centerX) / half)
+        : 1;
+      const raise = Math.round(shape.height * fraction);
+      this.heightmap[col] = Math.max(0, (this.heightmap[col] ?? 0) - raise);
+    }
+
+    this.redraw();
+
+    const changed: Array<{ x: number; oldY: number; newY: number }> = [];
+    for (let i = xMin; i <= xMax; i++) {
+      const oldY = before[i - xMin]!;
+      const newY = this.heightmap[i]!;
+      if (newY !== oldY) changed.push({ x: i, oldY, newY });
     }
 
     return changed.length > 0 ? new DirtParticles(changed) : null;

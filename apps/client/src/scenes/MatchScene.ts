@@ -177,18 +177,15 @@ export class MatchScene {
       this.world.addChild(g);
       setTimeout(() => { g.destroy(); }, 200);
     });
-    room.onMessage("terrain-deposited", (msg: { centerX: number; shape: { halfWidth: number; height: number } }) => {
-      const g = new Graphics();
-      const baseY = this.terrain?.heightAt(msg.centerX) ?? 0;
-      for (let i = 0; i < 8; i++) {
-        const angle = (Math.PI * 2 * i) / 8;
-        const dist = 20 + Math.random() * 20;
-        const px = msg.centerX + Math.cos(angle) * dist;
-        const py = baseY + Math.sin(angle) * dist * 0.5;
-        g.circle(px, py, 4).fill({ color: 0x8b6914, alpha: 0.7 });
+    room.onMessage("terrain-deposited", (msg: {
+      centerX: number;
+      shape: { halfWidth: number; height: number; spray?: boolean };
+    }) => {
+      const particles = this.terrain?.deposit(msg.centerX, msg.shape);
+      if (particles) {
+        this.world.addChild(particles);
+        this.activeAnims.push(particles);
       }
-      this.world.addChild(g);
-      setTimeout(() => { g.destroy(); }, 300);
     });
     room.onMessage("burrow-complete", (msg: { x: number; tunnelTopY: number }) => {
       const g = new Graphics();

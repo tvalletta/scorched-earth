@@ -4,7 +4,7 @@ export type { TerrainType, WallMode } from "@se/shared";
 export { ALL_TERRAIN_TYPES, ALL_WALL_MODES, parsePool } from "@se/shared";
 export type {
   Point, TerrainOptions, CarveOp, WeaponDef, SplitDef, TargetInfo,
-  DamageEntry, SimInput, TrajectorySample, TrajectoryResult,
+  DamageEntry, SimInput, TrajectorySample, TrajectoryResult, DepositShape,
 } from "./types";
 export { generateTerrain, generateUnderside, generateCeiling } from "./terrain/generate";
 export { carveInPlace, applyCarve, carveCeilingInPlace, settleInPlace } from "./terrain/carve";
