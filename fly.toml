@@ -1,22 +1,27 @@
-app = "scorched-earth"
-primary_region = "iad"
+# fly.toml app configuration file generated for scorched-earth-web on 2026-06-05T17:08:24Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'scorched-earth-web'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [http_service]
-  internal_port = 2567
+  internal_port = 8080
   force_https = true
-  auto_stop_machines = false
-
-[[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  auto_stop_machines = 'off'
 
 [checks]
   [checks.alive]
-    type = "http"
-    path = "/health"
-    interval = "10s"
-    timeout = "3s"
-    grace_period = "30s"
+    type = 'http'
+    interval = '10s'
+    timeout = '3s'
+    grace_period = '30s'
+    path = '/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
