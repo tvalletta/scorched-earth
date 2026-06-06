@@ -1,9 +1,29 @@
 import { createServer } from "http";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
 import { Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import appConfig from "./appConfig.js";
 import { getReplay } from "./rooms/replayStore.js";
 import { DebugStore } from "./debug/debugStore.js";
+
+const PUBLIC_DIR = process.env.PUBLIC_DIR ?? "./public";
+
+const MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript",
+  ".mjs": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".webp": "image/webp",
+};
 
 interface SentryClient {
   captureException(err: unknown): void;
@@ -36,11 +56,6 @@ const debugStore = DEBUG_ENABLED
 const DEBUG_BODY_LIMIT = 8 * 1024 * 1024; // 8 MB
 
 const httpServer = createServer((req, res) => {
-  if (req.method === "GET" && (req.url === "/" || req.url === "")) {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("scorched-earth game server");
-    return;
-  }
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", build: process.env.BUILD_ID ?? "dev" }));
@@ -156,7 +171,23 @@ const httpServer = createServer((req, res) => {
     }
     return;
   }
-  // Unmatched path
+  // Static file serving / SPA fallback
+  if (req.method === "GET") {
+    const urlPath = (req.url ?? "/").split("?")[0]!;
+    const candidate = join(PUBLIC_DIR, urlPath);
+    if (candidate.startsWith(PUBLIC_DIR) && existsSync(candidate) && !statSync(candidate).isDirectory()) {
+      const mime = MIME[extname(candidate).toLowerCase()] ?? "application/octet-stream";
+      res.writeHead(200, { "Content-Type": mime });
+      res.end(readFileSync(candidate));
+      return;
+    }
+    const indexHtml = join(PUBLIC_DIR, "index.html");
+    if (existsSync(indexHtml)) {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(readFileSync(indexHtml));
+      return;
+    }
+  }
   res.writeHead(404);
   res.end();
 });
