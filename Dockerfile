@@ -14,7 +14,7 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /app/apps/server/dist/index.js ./dist/index.js
 COPY --from=build /app/apps/server/node_modules/@sentry ./node_modules/@sentry
-RUN echo '{"name":"scorched-earth-server","version":"0.0.0"}' > package.json
+RUN echo '{"name":"scorched-earth-server","version":"0.0.0","type":"module"}' > package.json
 USER app
 EXPOSE 2567
 ENV NODE_ENV=production
