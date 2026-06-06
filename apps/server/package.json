@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --tsconfig tsconfig.dev.json src/index.ts",
     "start": "node --experimental-strip-types src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --external:@sentry/node",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --external:@sentry/node --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
