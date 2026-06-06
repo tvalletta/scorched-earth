@@ -1,13 +1,13 @@
 import { createServer } from "http";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join } from "node:path";
+import { extname, resolve } from "node:path";
 import { Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import appConfig from "./appConfig.js";
 import { getReplay } from "./rooms/replayStore.js";
 import { DebugStore } from "./debug/debugStore.js";
 
-const PUBLIC_DIR = process.env.PUBLIC_DIR ?? "./public";
+const PUBLIC_DIR = resolve(process.env.PUBLIC_DIR ?? "./public");
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -174,14 +174,14 @@ const httpServer = createServer((req, res) => {
   // Static file serving / SPA fallback
   if (req.method === "GET") {
     const urlPath = (req.url ?? "/").split("?")[0]!;
-    const candidate = join(PUBLIC_DIR, urlPath);
+    const candidate = resolve(PUBLIC_DIR, urlPath.replace(/^\//, ""));
     if (candidate.startsWith(PUBLIC_DIR) && existsSync(candidate) && !statSync(candidate).isDirectory()) {
       const mime = MIME[extname(candidate).toLowerCase()] ?? "application/octet-stream";
       res.writeHead(200, { "Content-Type": mime });
       res.end(readFileSync(candidate));
       return;
     }
-    const indexHtml = join(PUBLIC_DIR, "index.html");
+    const indexHtml = resolve(PUBLIC_DIR, "index.html");
     if (existsSync(indexHtml)) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(readFileSync(indexHtml));
