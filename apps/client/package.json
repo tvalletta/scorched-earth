@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "PORT=$(cc port get --role frontend --claim) vite --port $PORT",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
