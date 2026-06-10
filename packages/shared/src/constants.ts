@@ -1,5 +1,8 @@
 export const TERRAIN_WIDTH = 1600;
 export const TERRAIN_HEIGHT = 900;
+// Deepest y the terrain surface may be carved to. The 50px gap ensures every
+// column always retains a visible bedrock layer that explosions can't breach.
+export const TERRAIN_BEDROCK = TERRAIN_HEIGHT - 50;
 export const MAX_PLAYERS = 10;
 export const DEFAULT_TURN_TIMER_MS = 30_000;
 export const RECONNECT_GRACE_SEC = 60;

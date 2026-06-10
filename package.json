@@ -11,6 +11,7 @@
     "dev": "pnpm --parallel -r dev",
     "test": "pnpm -r test",
     "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:terrain": "playwright test --config tests/terrain-visual/playwright.config.ts",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "loadtest": "pnpm --filter @se/loadtest start",

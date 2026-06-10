@@ -1,5 +1,5 @@
 import { Container, Graphics } from "pixi.js";
-import { TERRAIN_WIDTH, TERRAIN_HEIGHT } from "@se/shared";
+import { TERRAIN_WIDTH, TERRAIN_HEIGHT, TERRAIN_BEDROCK } from "@se/shared";
 import type { TerrainType } from "@se/shared";
 import { generateTerrain, generateUnderside, generateCeiling, carveInPlace, carveCeilingInPlace, settleInPlace } from "@se/game";
 import type { DepositShape } from "@se/game";
@@ -11,6 +11,7 @@ export class TerrainRenderer extends Container {
   private graphics: Graphics;
   private zoneOverlay: Graphics;
   private seed: string;
+  private craterZones: Array<{ xMin: number; xMax: number }> = [];
 
   constructor(seed: string, type: TerrainType = "random") {
     super();
@@ -54,7 +55,7 @@ export class TerrainRenderer extends Container {
     if (op.layer === "ceiling" && this.ceilingMap) {
       carveCeilingInPlace(this.ceilingMap, op);
     } else {
-      carveInPlace(this.heightmap, op, { terrainHeight: TERRAIN_HEIGHT });
+      carveInPlace(this.heightmap, op, { terrainHeight: TERRAIN_BEDROCK });
     }
 
     // Apply gravity settling on floor carves only.
@@ -68,6 +69,7 @@ export class TerrainRenderer extends Container {
       settleBefore = settleInPlace(this.heightmap, xMin, xMax);
     }
 
+    this.craterZones.push({ xMin, xMax });
     this.redraw();
 
     // Build changed-column list (carve + settle) for DirtParticles.
@@ -165,24 +167,41 @@ export class TerrainRenderer extends Container {
     g.clear();
     const h = this.heightmap;
 
-    // Layer 1 — Floating-island underside (replaces a flat-bottomed block):
-    // a tapering rocky mass with stalactites, so the world reads as an
-    // Avatar-style floating island rather than a slab hanging in space.
-    this.drawUnderside(g, h);
+    // Build a set of columns modified by craters (for grass suppression + burned edge).
+    const craterCols = new Set<number>();
+    for (const zone of this.craterZones) {
+      for (let x = zone.xMin; x <= zone.xMax; x++) craterCols.add(x);
+    }
+
+    // Layer 1 — Floating-island underside: returns the underside bottom profile
+    // so band layers can be clipped to the island silhouette.
+    const undersideBottom = this.drawUnderside(g, h);
 
     // Layer 2 — Dirt band (surface to surface+200, on top of bedrock)
-    this.drawBand(g, h, 0, 200, 0x5c3a1e);
+    this.drawBand(g, h, 0, 200, 0x5c3a1e, undersideBottom);
 
     // Layer 3 — Topsoil strip (surface to surface+15)
-    this.drawBand(g, h, 0, 15, 0x6b4a25);
+    this.drawBand(g, h, 0, 15, 0x6b4a25, undersideBottom);
 
-    // Layer 4 — Grass stroke
-    g.moveTo(0, h[0] ?? 0);
-    for (let x = 1; x < TERRAIN_WIDTH; x++) g.lineTo(x, h[x] ?? 0);
+    // Layer 4 — Grass stroke (skip crater columns)
+    let inGrass = false;
+    for (let x = 0; x < TERRAIN_WIDTH; x++) {
+      if (craterCols.has(x)) {
+        inGrass = false;
+        continue;
+      }
+      if (!inGrass) {
+        g.moveTo(x, h[x] ?? 0);
+        inGrass = true;
+      } else {
+        g.lineTo(x, h[x] ?? 0);
+      }
+    }
     g.stroke({ color: 0x8bc34a, width: 3 });
 
-    // Layer 5 — Grass tufts every 40px
+    // Layer 5 — Grass tufts every 40px (skip crater columns)
     for (let x = 20; x < TERRAIN_WIDTH - 20; x += 40) {
+      if (craterCols.has(x)) continue;
       const sy = h[x] ?? 0;
       g.moveTo(x - 3, sy).lineTo(x - 4, sy - 6);
       g.stroke({ color: 0x4caf50, width: 1.5 });
@@ -190,6 +209,24 @@ export class TerrainRenderer extends Container {
       g.stroke({ color: 0x4caf50, width: 2 });
       g.moveTo(x + 3, sy).lineTo(x + 4, sy - 6);
       g.stroke({ color: 0x4caf50, width: 1.5 });
+    }
+
+    // Layer 4b — Burned edge on crater columns (replaces grass)
+    if (craterCols.size > 0) {
+      let inCrater = false;
+      for (let x = 0; x < TERRAIN_WIDTH; x++) {
+        if (craterCols.has(x)) {
+          if (!inCrater) {
+            g.moveTo(x, h[x] ?? 0);
+            inCrater = true;
+          } else {
+            g.lineTo(x, h[x] ?? 0);
+          }
+        } else {
+          inCrater = false;
+        }
+      }
+      g.stroke({ color: 0x1a0a00, width: 3, alpha: 0.9 });
     }
 
     // Layer 6 — Rock pebbles (deterministic from terrain seed)
@@ -244,8 +281,10 @@ export class TerrainRenderer extends Container {
    * the surface (deeper toward the middle), darkening toward the bottom, with
    * stalactite spikes and a faint rim light. Purely cosmetic — physics only
    * ever consults the top surface heightmap.
+   *
+   * Returns the per-column bottom profile so callers can clip dirt bands to it.
    */
-  private drawUnderside(g: Graphics, h: Int16Array): void {
+  private drawUnderside(g: Graphics, h: Int16Array): Float32Array {
     const W = TERRAIN_WIDTH;
 
     // Average surface height → a smooth reference so the underside doesn't
@@ -254,16 +293,7 @@ export class TerrainRenderer extends Container {
     for (let x = 0; x < W; x++) sum += h[x] ?? 0;
     const avgSurface = sum / W;
 
-    // Seeded phase so each map's underside silhouette differs.
-    let s = 0;
-    for (let i = 0; i < this.seed.length; i++) s = (Math.imul(31, s) + this.seed.charCodeAt(i)) >>> 0;
-    const phase = (s % 1000) / 1000 * Math.PI * 2;
-
-    // Small safety floor so the underside never poke through the surface in deep
-    // valleys; kept low so the convex belly curve (deepest in the middle, thin at
-    // the edges) shapes the silhouette rather than a uniform-thickness slab.
-    const MIN_THICKNESS = 60;
-    void phase;
+    const MIN_THICKNESS = 20;
 
     // Organically-generated underside (octave noise + plunging edges), guarded
     // so the island always has a minimum thickness even under deep valleys.
@@ -271,6 +301,27 @@ export class TerrainRenderer extends Container {
     const bottom = new Float32Array(W);
     for (let x = 0; x < W; x++) {
       bottom[x] = Math.max((h[x] ?? 0) + MIN_THICKNESS, gen[x]!);
+    }
+
+    // Pin the underside to the local surface right at the canvas edges so the
+    // island forms a sharp point at x=0 / x=W-1 regardless of how tall the
+    // terrain is there. The zone is deliberately narrow (5% ≈ 80px) so the
+    // island retains its full natural thickness almost to the boundary — only
+    // the last ~40px taper sharply, avoiding a long visible tongue. The t^4
+    // curve keeps the island thick until very close to the edge, then drops
+    // steeply to knife-edge exactly at the canvas boundary.
+    const edgeZone = Math.round(W * 0.05);
+    for (let x = 0; x < W; x++) {
+      const dist = Math.min(x, W - 1 - x);
+      if (dist >= edgeZone) continue;
+      const t = dist / edgeZone;
+      const steep = t * t * t * t;   // t^4: near-zero until last few px, then sharp rise
+      const edgeTarget = (h[x] ?? 0) + MIN_THICKNESS;
+      const tapered = edgeTarget + (bottom[x]! - edgeTarget) * steep;
+      bottom[x] = Math.max(
+        (h[x] ?? 0) + MIN_THICKNESS,
+        Math.min(bottom[x]!, Math.round(tapered)),
+      );
     }
 
     // Body — medium rock from the surface down to the underside contour.
@@ -281,8 +332,9 @@ export class TerrainRenderer extends Container {
     g.fill(0x3a2614);
 
     // Shadow — darker mass hugging the lower portion of the island for depth.
-    g.moveTo(0, bottom[0]! - 150);
-    for (let x = 1; x < W; x++) g.lineTo(x, bottom[x]! - 150);
+    // Top is clamped to the surface so it never bleeds above the terrain into sky.
+    g.moveTo(0, Math.max(h[0] ?? 0, bottom[0]! - 150));
+    for (let x = 1; x < W; x++) g.lineTo(x, Math.max(h[x] ?? 0, bottom[x]! - 150));
     for (let x = W - 1; x >= 0; x--) g.lineTo(x, bottom[x]!);
     g.closePath();
     g.fill({ color: 0x1c1208, alpha: 0.6 });
@@ -292,6 +344,8 @@ export class TerrainRenderer extends Container {
     g.moveTo(0, bottom[0]!);
     for (let x = 1; x < W; x += 4) g.lineTo(x, bottom[x]!);
     g.stroke({ color: 0x6b4a25, width: 2, alpha: 0.4 });
+
+    return bottom;
   }
 
   private drawBand(
@@ -300,11 +354,14 @@ export class TerrainRenderer extends Container {
     topOffset: number,
     bandHeight: number,
     color: number,
+    clipBottom?: Float32Array,
   ): void {
     g.moveTo(0, (h[0] ?? 0) + topOffset);
     for (let x = 1; x < TERRAIN_WIDTH; x++) g.lineTo(x, (h[x] ?? 0) + topOffset);
     for (let x = TERRAIN_WIDTH - 1; x >= 0; x--) {
-      g.lineTo(x, Math.min((h[x] ?? 0) + topOffset + bandHeight, TERRAIN_HEIGHT));
+      const rawBottom = (h[x] ?? 0) + topOffset + bandHeight;
+      const clip = clipBottom ? clipBottom[x]! : TERRAIN_HEIGHT;
+      g.lineTo(x, Math.min(rawBottom, clip, TERRAIN_HEIGHT));
     }
     g.closePath();
     g.fill(color);

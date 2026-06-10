@@ -49,11 +49,11 @@ export function carveInPlace(
 
     if (circleBottom > currentSurface) {
       let newY = Math.round(circleBottom);
-      // When the blast center is more than 2 radii below a column's surface
-      // (i.e. the column is a cliff far above the blast), cap the surface drop
-      // to one radius. Prevents shooting at a cliff base from removing the
-      // entire cliff top dozens of pixels above the explosion.
-      if (cy - currentSurface > 2 * radius) {
+      // When the blast center is more than 1 radius below a column's surface
+      // (i.e. the column is on elevated terrain above the blast), cap the
+      // surface drop to one radius. Prevents deep pear-shaped gouges when
+      // blasting on slopes or near cliff bases.
+      if (cy - currentSurface > radius) {
         newY = Math.min(newY, Math.round(currentSurface + radius));
       }
       if (newY < 0) newY = 0;

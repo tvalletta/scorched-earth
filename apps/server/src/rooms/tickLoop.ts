@@ -1,4 +1,4 @@
-import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, SHIELD_DEFS, REACTIVE_BLAST } from "@se/shared";
+import { MatchState, CarveOp, PendingEffect, TERRAIN_WIDTH, TERRAIN_HEIGHT, TERRAIN_BEDROCK, SHIELD_DEFS, REACTIVE_BLAST } from "@se/shared";
 import {
   computeFallDamage, BABY_MISSILE,
   computeDamage, carveInPlace, carveCeilingInPlace, settleInPlace,
@@ -47,7 +47,7 @@ export function applyStepEvent(
     if (op.layer === "ceiling" && ctx.ceiling) {
       carveCeilingInPlace(ctx.ceiling, op);
     } else {
-      carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+      carveInPlace(terrain, op, { terrainHeight: TERRAIN_BEDROCK});
       settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     }
 
@@ -82,7 +82,7 @@ export function applyStepEvent(
     op.radius = weapon.radius; op.tick = state.tick + 1;
     state.terrainOps.push(op);
     state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_BEDROCK});
     settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
 
     const targets = Array.from(state.tanks.values()).filter(t => t.alive)
@@ -100,7 +100,7 @@ export function applyStepEvent(
     op.radius = weapon.radius; op.tick = state.tick + 1;
     state.terrainOps.push(op);
     state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_BEDROCK});
     settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     const targets = Array.from(state.tanks.values()).filter(t => t.alive)
       .map(t => ({ playerId: t.sessionId, x: t.x, y: t.y, shieldHp: t.shieldHp }));
@@ -190,7 +190,7 @@ export function applyStepEvent(
     const op = new CarveOp();
     op.x = Math.round(event.x); op.y = Math.round(event.y); op.radius = PATRIOT_CARVE_RADIUS; op.tick = state.tick + 1;
     state.terrainOps.push(op); state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_BEDROCK});
     settleInPlace(terrain, op.x - op.radius, op.x + op.radius);
     broadcast("patriot-intercept", { patriotId: event.patriotId, targetId: event.targetId, x: event.x, y: event.y });
     return;

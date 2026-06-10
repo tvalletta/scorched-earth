@@ -59,6 +59,8 @@ export class HudBar {
   private onMouseMoveDial: (e: MouseEvent) => void = () => {};
   private onMouseMovePower: (e: MouseEvent) => void = () => {};
   private onMouseUp: () => void = () => {};
+  private isNarrow = false;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(private room: Room<MatchState>) {
     this.el = document.createElement('div');
@@ -76,11 +78,30 @@ export class HudBar {
     this.drawDial();
     this.renderTabs();
     this.renderGrid();
+    this.observeWidth();
   }
 
   setAimChangeCallback(fn: (angle: number, power: number) => void): void { this.onAimChange = fn; }
   getCurrentAim(): { angle: number; power: number } { return { angle: this.currentAngle, power: this.currentPower }; }
   setLocalTank(view: { setAngle(deg: number): void } | null): void { this.localTank = view; }
+
+  private observeWidth(): void {
+    const grid = this.el.querySelector<HTMLDivElement>('#hud-grid');
+    if (!grid) return;
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? grid.offsetWidth;
+      const narrow = w < 320;
+      if (narrow !== this.isNarrow) {
+        this.isNarrow = narrow;
+        if (narrow && this.activeCategory === 'ALL') {
+          this.activeCategory = 'BALLISTIC';
+        }
+        this.renderTabs();
+        this.renderGrid();
+      }
+    });
+    this.resizeObserver.observe(grid);
+  }
 
   update(state: MatchState): void {
     const myTank = state.tanks.get(this.room.sessionId);
@@ -366,6 +387,7 @@ export class HudBar {
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     for (const tab of CATEGORY_TABS) {
+      if (this.isNarrow && tab === 'ALL') continue;
       const btn = document.createElement('button');
       btn.textContent = tab;
       const active = this.activeCategory === tab;

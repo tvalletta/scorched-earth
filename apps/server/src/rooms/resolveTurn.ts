@@ -1,7 +1,7 @@
 import {
   MatchState, CarveOp,
   ROUND_SUMMARY_DURATION_MS,
-  TERRAIN_WIDTH, TERRAIN_HEIGHT,
+  TERRAIN_WIDTH, TERRAIN_HEIGHT, TERRAIN_BEDROCK,
   clampAngle, clampPower,
 } from "@se/shared";
 import {
@@ -43,7 +43,7 @@ export function buildTerrainFromState(state: MatchState): Int16Array {
     carveInPlace(
       terrain,
       { x: op.x, y: op.y, radius: op.radius, tick: op.tick },
-      { terrainHeight: TERRAIN_HEIGHT },
+      { terrainHeight: TERRAIN_BEDROCK },
     );
   }
   return terrain;
@@ -94,7 +94,7 @@ export function handleFire(
       damage: weaponDef.damage,
       terrain: ctx.terrain,
       terrainWidth: TERRAIN_WIDTH,
-      terrainHeight: TERRAIN_HEIGHT,
+      terrainHeight: TERRAIN_BEDROCK,
     });
 
     // Apply shield drain for each hit (commitResolution only handles hullDamage)
@@ -162,7 +162,7 @@ function applyAllCarves(ctx: ResolveContext, result: TrajectoryResult): void {
     op.tick = state.tick + 1;
     state.terrainOps.push(op);
     state.terrainVersion++;
-    carveInPlace(terrain, op, { terrainHeight: TERRAIN_HEIGHT });
+    carveInPlace(terrain, op, { terrainHeight: TERRAIN_BEDROCK });
   }
   for (const child of result.children ?? []) {
     applyAllCarves(ctx, child);

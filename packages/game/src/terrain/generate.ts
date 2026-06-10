@@ -290,7 +290,7 @@ export function generateUnderside(seed: string, width: number, avgSurface: numbe
   const o2 = buildOctave(seed + "-u2", 90, width);
   const o3 = buildOctave(seed + "-u3", 40, width);
   const out = new Int16Array(width);
-  const edgeDepth = 90;    // thin minimum thickness at the left/right tips
+  const edgeDepth = 30;    // thin minimum thickness at the left/right tips
   const bellyDepth = 460;  // extra depth at the centre — the thick "belly"
   const amp = 90;
   for (let x = 0; x < width; x++) {
